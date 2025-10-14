@@ -4,9 +4,13 @@ workflows:
     
     # 1. TRIGGERS: Only run this workflow when a new tag is created.
     triggering:
-      # Disables automatic builds on push to main branch
-      branch: NEVER_RUN
-      # Only runs when a tag matching the version pattern is pushed
+      # FIX 1: Set branch to 'main' and use 'ignore' to disable push builds.
+      # This is the correct way to ignore pushes in Codemagic YAML.
+      branch:
+        - pattern: main
+          ignore: true
+          
+      # FIX 2: Correct indentation for tag structure
       tag:
         pattern: v*.*.*
         
@@ -30,7 +34,8 @@ workflows:
 
     # 3. CACHING: Speeds up subsequent builds significantly.
     cache:
-      cache_paths:  
+      cache_paths:
+        # FIX 3: Removed extra spaces for valid list format
         - .gradle/caches
         - $FLUTTER_ROOT/.pub-cache
         - $HOME/.cocoapods/repos

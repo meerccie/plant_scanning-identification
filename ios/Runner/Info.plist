@@ -2,11 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Basic App Configuration -->
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>My Plant V2</string>
+	<string>Plantitao</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -21,12 +22,29 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>plantitao</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	
-	<!-- UI Configuration -->
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to scan and identify plants, and to allow you to upload photos of your plants and store.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs location access to find nearby plant stores and to tag the location of your plant scans.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs photo library access to allow you to select images of your plants and store for uploading.</string>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -44,90 +62,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>UIViewControllerBasedStatusBarAppearance</key>
-	<false/>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
-	
-	<!-- PERMISSIONS SECTION -->
-	
-	<!-- Camera Permission (For taking plant photos) -->
-	<key>NSCameraUsageDescription</key>
-	<string>This app needs camera access to take photos of your plants for listings and sharing.</string>
-	
-	<!-- Photo Library Permission (For selecting plant images) -->
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app needs access to your photo library to select plant images for your listings.</string>
-	
-	<!-- Photo Library Add Permission (For saving plant photos) -->
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>This app needs permission to save plant photos to your photo library.</string>
-	
-	<!-- Location Permission (For store locations and delivery) -->
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app uses your location to show nearby plant stores and calculate delivery options.</string>
-	
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app uses your location to provide location-based plant store recommendations and delivery services.</string>
-	
-	<!-- Microphone Permission (If you plan to add video features) -->
-	<key>NSMicrophoneUsageDescription</key>
-	<string>This app needs microphone access to record plant care videos and tutorials.</string>
-	
-	<!-- Contacts Permission (If you plan to add sharing features) -->
-	<key>NSContactsUsageDescription</key>
-	<string>This app needs access to contacts to help you share plant listings with friends.</string>
-	
-	<!-- Calendar Permission (If you plan to add plant care reminders) -->
-	<key>NSCalendarsUsageDescription</key>
-	<string>This app needs calendar access to set plant care reminders and watering schedules.</string>
-	
-	<!-- Notifications Permission (Handled automatically, but good to mention) -->
-	<!-- This is handled through Firebase/Push notification setup -->
-	
-	<!-- Network Security Configuration -->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<!-- Allow HTTP for development/local testing -->
-		<key>NSAllowsArbitraryLoads</key>
-		<false/>
-		<!-- Specific domain exceptions if needed -->
-		<key>NSExceptionDomains</key>
-		<dict>
-			<!-- Example: Allow your Supabase domain -->
-			<key>supabase.co</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSExceptionMinimumTLSVersion</key>
-				<string>TLSv1.0</string>
-			</dict>
-			<!-- Example: For local development -->
-			<key>localhost</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-			</dict>
-		</dict>
-	</dict>
-	
-	<!-- Background Modes (If you need background processing) -->
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>remote-notification</string>
-		<string>background-processing</string>
-	</array>
-	
-	<!-- File Sharing (If users can export plant data) -->
-	<key>UIFileSharingEnabled</key>
-	<true/>
-	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<true/>
-	
-	<!-- Prevent App from being backed up (for security) -->
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
 </dict>
 </plist>

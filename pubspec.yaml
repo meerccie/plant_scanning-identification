@@ -55,6 +55,7 @@ flutter:
     - assets/icons/
     - assets/fonts/
     - .env
+    - shorebird.yaml
 
   fonts:
     - family: Pacifico

@@ -12,7 +12,9 @@
 .swiftpm/
 migrate_working_dir/
 .env             # <--- ADD THIS LINE
-my.env           # <--- Also good to add this one
+my.env
+*.jks
+private_access_token.txt
 
 # IntelliJ related
 *.iml

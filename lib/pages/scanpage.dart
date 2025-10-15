@@ -21,7 +21,7 @@ class ScanPage extends StatefulWidget {
   State<ScanPage> createState() => _ScanPageState();
 }
 
-class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
+class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver, TickerProviderStateMixin {
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
   bool _isProcessing = false;
@@ -29,15 +29,29 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   final ImagePicker _picker = ImagePicker();
   XFile? _capturedImageFile;
   bool _cameraPermissionGranted = false;
+  
+  // Animation controllers for scanning effect
+  late AnimationController _scanAnimationController;
+  late Animation<double> _scanAnimation;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    
+    // Initialize scanning animation
+    _scanAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    
+    _scanAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _scanAnimationController, curve: Curves.easeInOut),
+    );
+    
     _initializeCamera();
   }
 
-  // UPDATED: Standardized dialog matching plant upload and edit store design
   Future<void> _showCombinedPermissionRedirectDialog() async {
     final shouldGoToProfile = await showDialog<bool>(
       context: context,
@@ -85,7 +99,6 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         ),
       );
       
-      // After returning, check permission status and reinitialize camera if needed
       final permissionProvider = context.read<PermissionProvider>();
       await permissionProvider.checkPermissions();
       
@@ -98,7 +111,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
             backgroundColor: AppColors.success,
           ),
         );
-        _initializeCamera(); // Reinitialize camera after permissions granted
+        _initializeCamera();
       }
     }
   }
@@ -131,8 +144,11 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         return;
       }
 
-      _controller = CameraController(cameras.first, ResolutionPreset.high,
-          enableAudio: false);
+      _controller = CameraController(
+        cameras.first,
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
 
       _initializeControllerFuture = _controller!.initialize().then((_) {
         if (mounted) {
@@ -151,10 +167,8 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Re-check permissions when the app resumes
       _initializeCamera();
     } else if (state == AppLifecycleState.inactive) {
-      // Dispose controller when app is inactive
       _controller?.dispose();
     }
   }
@@ -163,6 +177,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
+    _scanAnimationController.dispose();
     super.dispose();
   }
 
@@ -269,8 +284,10 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text('Scan & Identify'),
+        backgroundColor: Colors.black,
         actions: [
           IconButton(
             icon: const Icon(Icons.photo_library),
@@ -289,32 +306,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
             if (_controller == null || !_controller!.value.isInitialized) {
               return _buildNoCameraView();
             }
-            return Stack(
-              alignment: Alignment.center,
-              children: [
-                if (_capturedImageFile == null)
-                  _buildCameraPreview(context), // MODIFIED: Call helper function
-                if (_capturedImageFile != null)
-                  SizedBox.expand(
-                    child: Image.file(
-                      File(_capturedImageFile!.path),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                if (_isProcessing || _isCapturing)
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  ),
-              ],
-            );
+            return _buildCameraView();
           }
           return const Center(child: CircularProgressIndicator());
         },
@@ -324,36 +316,181 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
     );
   }
 
-  // ADDED: New helper function to fix camera stretching
-  Widget _buildCameraPreview(BuildContext context) {
-    // Determine the available size for the camera preview
-    final size = MediaQuery.of(context).size;
-    
-    // Calculate the screen aspect ratio
-    final deviceRatio = size.width / size.height;
-    
-    // Get the camera's aspect ratio (from the controller)
-    final cameraRatio = _controller!.value.aspectRatio;
-    
-    // Calculate the scale factor required to fill the device ratio with the camera ratio
-    // If device is taller than camera (deviceRatio < cameraRatio), scale up vertically
-    // If device is wider than camera (deviceRatio > cameraRatio), scale up horizontally
-    double scale = cameraRatio / deviceRatio;
-    
-    // If the ratio calculation results in a scale factor less than 1, invert it 
-    // to ensure we always scale up (crop to fit) rather than scale down (letterbox)
-    if (scale < 1) {
-      scale = 1 / scale;
-    }
+  Widget _buildCameraView() {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Camera preview with proper aspect ratio
+        Center(
+          child: AspectRatio(
+            aspectRatio: _controller!.value.aspectRatio,
+            child: _capturedImageFile == null
+                ? CameraPreview(_controller!)
+                : Image.file(
+                    File(_capturedImageFile!.path),
+                    fit: BoxFit.contain,
+                  ),
+          ),
+        ),
+        
+        // Scanning frame overlay
+        if (_capturedImageFile == null)
+          Center(
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.8,
+              height: MediaQuery.of(context).size.width * 0.8,
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: AppColors.primaryColor,
+                  width: 3,
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Stack(
+                children: [
+                  // Corner decorations
+                  _buildCornerDecoration(Alignment.topLeft),
+                  _buildCornerDecoration(Alignment.topRight),
+                  _buildCornerDecoration(Alignment.bottomLeft),
+                  _buildCornerDecoration(Alignment.bottomRight),
+                  
+                  // Instruction text
+                  Positioned(
+                    bottom: 20,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'Position plant within frame',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        
+        // Processing overlay with scanning animation
+        if (_isProcessing || _isCapturing)
+          Container(
+            color: Colors.black87,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 200,
+                    height: 200,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Circular progress indicator
+                        const SizedBox(
+                          width: 80,
+                          height: 80,
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryColor),
+                            strokeWidth: 5,
+                          ),
+                        ),
+                        
+                        // Animated scanning line
+                        AnimatedBuilder(
+                          animation: _scanAnimation,
+                          builder: (context, child) {
+                            return Positioned(
+                              top: 200 * _scanAnimation.value,
+                              left: 0,
+                              right: 0,
+                              child: Container(
+                                height: 3,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.transparent,
+                                      AppColors.primaryColor.withOpacity(0.8),
+                                      Colors.transparent,
+                                    ],
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.primaryColor.withOpacity(0.5),
+                                      blurRadius: 10,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        
+                        // Plant icon
+                        const Icon(
+                          Icons.local_florist,
+                          size: 40,
+                          color: Colors.white70,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  Text(
+                    _isCapturing ? 'Capturing...' : 'Analyzing plant...',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Please wait',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 
-    return Transform.scale(
-      scale: scale,
-      alignment: Alignment.center, // Center the scaled preview
-      child: Center(
-        child: AspectRatio(
-          // Use the camera's native aspect ratio to prevent stretching
-          aspectRatio: cameraRatio, 
-          child: CameraPreview(_controller!),
+  Widget _buildCornerDecoration(Alignment alignment) {
+    return Align(
+      alignment: alignment,
+      child: Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          border: Border(
+            top: alignment == Alignment.topLeft || alignment == Alignment.topRight
+                ? BorderSide(color: AppColors.primaryColor, width: 4)
+                : BorderSide.none,
+            bottom: alignment == Alignment.bottomLeft || alignment == Alignment.bottomRight
+                ? BorderSide(color: AppColors.primaryColor, width: 4)
+                : BorderSide.none,
+            left: alignment == Alignment.topLeft || alignment == Alignment.bottomLeft
+                ? BorderSide(color: AppColors.primaryColor, width: 4)
+                : BorderSide.none,
+            right: alignment == Alignment.topRight || alignment == Alignment.bottomRight
+                ? BorderSide(color: AppColors.primaryColor, width: 4)
+                : BorderSide.none,
+          ),
         ),
       ),
     );
@@ -370,12 +507,13 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
             const SizedBox(height: 20),
             const Text(
               'Permissions Required',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
             ),
             const SizedBox(height: 10),
             const Text(
               'To use the plant scanner, please grant camera and location access from your profile page.',
               textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 20),
             ElevatedButton.icon(
@@ -410,12 +548,13 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
             const SizedBox(height: 20),
             const Text(
               'Camera not available',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
             ),
             const SizedBox(height: 10),
             const Text(
               'You can still identify plants by choosing an image from your gallery using the icon in the top-right corner.',
               textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white70),
             ),
           ],
         ),
@@ -434,7 +573,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
             onPressed: () => setState(() => _capturedImageFile = null),
             label: const Text('Retake'),
             icon: const Icon(Icons.refresh),
-            backgroundColor: Colors.grey,
+            backgroundColor: Colors.grey[800],
           ),
           FloatingActionButton.extended(
             onPressed: _isProcessing
@@ -442,93 +581,248 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
                 : () => _scanImage(File(_capturedImageFile!.path)),
             label: const Text('Scan'),
             icon: const Icon(Icons.check),
+            backgroundColor: AppColors.primaryColor,
           ),
         ],
       );
     } else {
       return FloatingActionButton.large(
+        backgroundColor: AppColors.primaryColor,
         onPressed: _isProcessing || _isCapturing ? null : _captureAndFreeze,
         child: _isProcessing || _isCapturing
             ? const CircularProgressIndicator(color: Colors.white)
-            : const Icon(Icons.camera),
+            : const Icon(Icons.camera, size: 36),
       );
     }
   }
 
-  void _showResultsDialog(PlantIdentification identification) {
-    if (identification.results.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not identify the plant.')),
-        );
-      }
-      return;
+// In scanpage.dart, replace the _showResultsDialog method with this:
+
+void _showResultsDialog(PlantIdentification identification) {
+  if (identification.results.isEmpty) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not identify the plant.')),
+      );
     }
+    return;
+  }
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("We found these plants:"),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 300,
-            child: ListView.builder(
-              itemCount: identification.results.length,
-              itemBuilder: (context, index) {
-                final result = identification.results[index];
-                final imageUrl =
-                    result.images.isNotEmpty ? result.images.first.url : null;
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) {
+      return Dialog(
+        insetPadding: const EdgeInsets.all(20),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.9,
+            minWidth: 350,
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Plant Identification Results",
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  "We found these potential matches:",
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: identification.results.length,
+                    itemBuilder: (context, index) {
+                      final result = identification.results[index];
+                      final imageUrl =
+                          result.images.isNotEmpty ? result.images.first.url : null;
 
-                return Card(
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  child: ListTile(
-                    leading: imageUrl != null && imageUrl.isNotEmpty
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: CachedNetworkImage(
-                              imageUrl: imageUrl,
-                              width: 60,
-                              height: 60,
-                              fit: BoxFit.cover,
-                              placeholder: (context, url) =>
-                                  const Center(child: CircularProgressIndicator()),
-                              errorWidget: (context, url, error) =>
-                                  const Icon(Icons.local_florist, size: 40),
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
                             ),
-                          )
-                        : const Icon(Icons.local_florist, size: 50),
-                    title: Text(result.species.displayName),
-                    subtitle: Text(result.species.commonNames.join(', ')),
-                    trailing:
-                        Text('${(result.score * 100).toStringAsFixed(1)}%'),
-                    onTap: () {
-                      final plantNameToSearch = result
-                              .species.scientificNameWithoutAuthor.isNotEmpty
-                          ? result.species.scientificNameWithoutAuthor
-                          : result.species.displayName;
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ScanResultDetailsPage(
-                              plantName: plantNameToSearch),
+                          ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () {
+                              final plantNameToSearch = result
+                                      .species.scientificNameWithoutAuthor.isNotEmpty
+                                  ? result.species.scientificNameWithoutAuthor
+                                  : result.species.displayName;
+                              Navigator.of(context).pop();
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ScanResultDetailsPage(
+                                      plantName: plantNameToSearch),
+                                ),
+                              );
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Plant Image
+                                  Container(
+                                    width: 80,
+                                    height: 80,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(8),
+                                      color: Colors.grey[100],
+                                    ),
+                                    child: imageUrl != null && imageUrl.isNotEmpty
+                                        ? ClipRRect(
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: CachedNetworkImage(
+                                              imageUrl: imageUrl,
+                                              width: 80,
+                                              height: 80,
+                                              fit: BoxFit.cover,
+                                              placeholder: (context, url) => Container(
+                                                width: 80,
+                                                height: 80,
+                                                child: const Center(
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                  ),
+                                                ),
+                                              ),
+                                              errorWidget: (context, url, error) => 
+                                                const Icon(Icons.local_florist, 
+                                                  size: 40, 
+                                                  color: Colors.grey),
+                                            ),
+                                          )
+                                        : const Center(
+                                            child: Icon(Icons.local_florist, 
+                                              size: 40, 
+                                              color: Colors.grey),
+                                          ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  // Plant Details
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          result.species.displayName,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 16,
+                                            color: Colors.black87,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        if (result.species.commonNames.isNotEmpty)
+                                          Text(
+                                            result.species.commonNames.join(', '),
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.black54,
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                                vertical: 4,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: _getConfidenceColor(result.score),
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: Text(
+                                                '${(result.score * 100).toStringAsFixed(1)}% match',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ),
+                                            const Spacer(),
+                                            const Icon(
+                                              Icons.arrow_forward_ios,
+                                              size: 16,
+                                              color: Colors.grey,
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
                       );
                     },
                   ),
-                );
-              },
+                ),
+                const SizedBox(height: 20),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primaryColor,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: const Text(
+                      'Close',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          actions: [
-            TextButton(
-              child: const Text('Close'),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ],
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
+
+Color _getConfidenceColor(double score) {
+  if (score > 0.7) return Colors.green;
+  if (score > 0.4) return Colors.orange;
+  return Colors.red;
+}
 }

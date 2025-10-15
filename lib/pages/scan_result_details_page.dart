@@ -26,78 +26,75 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
     _storesFuture = _fetchStores();
   }
 
-  Future<List<Map<String, dynamic>>> _fetchStores() async {
-    if (!mounted) return [];
+// In lib/pages/scan_result_details_page.dart
+
+Future<List<Map<String, dynamic>>> _fetchStores() async {
+  if (!mounted) return [];
+  
+  setState(() => _isSearching = true);
+  
+  final locationProvider = context.read<LocationProvider>();
+  
+  print('📍 Starting store search for: ${widget.plantName}');
+  
+  final hasLocation = await locationProvider.getCurrentLocationForScanning(context: context);
+
+  if (!hasLocation || locationProvider.currentPosition == null) {
+    print('❌ No location available for store search');
+    if (mounted) setState(() => _isSearching = false);
+    return [];
+  }
+
+  final currentPosition = locationProvider.currentPosition!;
+  print('📍 Current location: ${currentPosition.latitude}, ${currentPosition.longitude}');
+  print('🔍 Searching for stores with plant: ${widget.plantName}');
+
+  try {
+    // Try exact match first
+    List<Map<String, dynamic>> stores = await SupabaseDatabaseService.getNearbyStoresWithPlant(
+      plantName: widget.plantName,
+      latitude: currentPosition.latitude,
+      longitude: currentPosition.longitude,
+      radiusInKm: 50.0, // Increased radius
+    );
+
+    print('🏪 Exact match found ${stores.length} stores');
+
+    // --- IMPROVED LOGIC ---
+    // Always try partial matching to find more results
+    print('🔄 Trying partial name matching...');
+    final searchTerms = _extractSearchTerms(widget.plantName);
     
-    setState(() => _isSearching = true);
-    
-    final locationProvider = context.read<LocationProvider>();
-    
-    print('📍 Starting store search for: ${widget.plantName}');
-    
-    // First, ensure we have location permission and current position
-    final hasLocation = await locationProvider.getCurrentLocationForScanning(context: context);
-
-    if (!hasLocation || locationProvider.currentPosition == null) {
-      print('❌ No location available for store search');
-      setState(() => _isSearching = false);
-      return [];
-    }
-
-    final currentPosition = locationProvider.currentPosition!;
-    print('📍 Current location: ${currentPosition.latitude}, ${currentPosition.longitude}');
-    print('🔍 Searching for stores with plant: ${widget.plantName}');
-
-    try {
-      // Try exact match first
-      List<Map<String, dynamic>> stores = await SupabaseDatabaseService.getNearbyStoresWithPlant(
-        plantName: widget.plantName,
-        latitude: currentPosition.latitude,
-        longitude: currentPosition.longitude,
-        radiusInKm: 50.0, // Increased radius
-      );
-
-      print('🏪 Exact match found ${stores.length} stores');
-
-      // If no results, try partial matching
-      if (stores.isEmpty) {
-        print('🔄 Trying partial name matching...');
+    for (final term in searchTerms) {
+      if (term.length > 2) { // Only search meaningful terms
+        final partialStores = await SupabaseDatabaseService.getNearbyStoresWithPlant(
+          plantName: term,
+          latitude: currentPosition.latitude,
+          longitude: currentPosition.longitude,
+          radiusInKm: 50.0,
+        );
         
-        // Extract key terms for broader search
-        final searchTerms = _extractSearchTerms(widget.plantName);
-        
-        for (final term in searchTerms) {
-          if (term.length > 2) { // Only search meaningful terms
-            final partialStores = await SupabaseDatabaseService.getNearbyStoresWithPlant(
-              plantName: term,
-              latitude: currentPosition.latitude,
-              longitude: currentPosition.longitude,
-              radiusInKm: 50.0,
-            );
-            
-            if (partialStores.isNotEmpty) {
-              print('🏪 Found ${partialStores.length} stores with term: "$term"');
-              stores.addAll(partialStores);
-              break; // Use first successful partial match
-            }
-          }
+        if (partialStores.isNotEmpty) {
+          print('🏪 Found ${partialStores.length} stores with term: "$term"');
+          stores.addAll(partialStores); // Add new findings to the main list
         }
       }
+    }
 
-      // Remove duplicates
-      final uniqueStores = _removeDuplicateStores(stores);
-      print('🎯 Final result: ${uniqueStores.length} unique stores');
-      
-      return uniqueStores;
-    } catch (e) {
-      print('❌ Error fetching stores: $e');
-      return [];
-    } finally {
-      if (mounted) {
-        setState(() => _isSearching = false);
-      }
+    // Remove duplicates and return
+    final uniqueStores = _removeDuplicateStores(stores);
+    print('🎯 Final result: ${uniqueStores.length} unique stores');
+    
+    return uniqueStores;
+  } catch (e) {
+    print('❌ Error fetching stores: $e');
+    return [];
+  } finally {
+    if (mounted) {
+      setState(() => _isSearching = false);
     }
   }
+}
 
   List<String> _extractSearchTerms(String plantName) {
     // Remove common prefixes and extract key words

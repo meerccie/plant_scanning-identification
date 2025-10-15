@@ -13,6 +13,7 @@ import '../providers/location_provider.dart';
 import '../services/plant_scanner_service.dart';
 import 'scan_result_details_page.dart';
 import '../components/app_colors.dart';
+import '../widgets/scanning_animation_widget.dart'; // Import the new widget
 
 class ScanPage extends StatefulWidget {
   const ScanPage({super.key});
@@ -21,7 +22,7 @@ class ScanPage extends StatefulWidget {
   State<ScanPage> createState() => _ScanPageState();
 }
 
-class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver, TickerProviderStateMixin {
+class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
   bool _isProcessing = false;
@@ -29,26 +30,11 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver, Ticker
   final ImagePicker _picker = ImagePicker();
   XFile? _capturedImageFile;
   bool _cameraPermissionGranted = false;
-  
-  // Animation controllers for scanning effect
-  late AnimationController _scanAnimationController;
-  late Animation<double> _scanAnimation;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    
-    // Initialize scanning animation
-    _scanAnimationController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-    
-    _scanAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _scanAnimationController, curve: Curves.easeInOut),
-    );
-    
     _initializeCamera();
   }
 
@@ -177,7 +163,6 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver, Ticker
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
-    _scanAnimationController.dispose();
     super.dispose();
   }
 
@@ -320,16 +305,20 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver, Ticker
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Camera preview with proper aspect ratio
-        Center(
-          child: AspectRatio(
-            aspectRatio: _controller!.value.aspectRatio,
-            child: _capturedImageFile == null
-                ? CameraPreview(_controller!)
-                : Image.file(
-                    File(_capturedImageFile!.path),
-                    fit: BoxFit.contain,
-                  ),
+        // FIX: This structure prevents the camera preview from stretching.
+        SizedBox.expand(
+          child: FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(
+              width: _controller!.value.previewSize!.height,
+              height: _controller!.value.previewSize!.width,
+              child: _capturedImageFile == null
+                  ? CameraPreview(_controller!)
+                  : Image.file(
+                      File(_capturedImageFile!.path),
+                      fit: BoxFit.contain,
+                    ),
+            ),
           ),
         ),
         
@@ -348,13 +337,11 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver, Ticker
               ),
               child: Stack(
                 children: [
-                  // Corner decorations
                   _buildCornerDecoration(Alignment.topLeft),
                   _buildCornerDecoration(Alignment.topRight),
                   _buildCornerDecoration(Alignment.bottomLeft),
                   _buildCornerDecoration(Alignment.bottomRight),
                   
-                  // Instruction text
                   Positioned(
                     bottom: 20,
                     left: 0,
@@ -381,89 +368,12 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver, Ticker
             ),
           ),
         
-        // Processing overlay with scanning animation
+        // Processing overlay using the new reusable widget
         if (_isProcessing || _isCapturing)
           Container(
             color: Colors.black87,
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 200,
-                    height: 200,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // Circular progress indicator
-                        const SizedBox(
-                          width: 80,
-                          height: 80,
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryColor),
-                            strokeWidth: 5,
-                          ),
-                        ),
-                        
-                        // Animated scanning line
-                        AnimatedBuilder(
-                          animation: _scanAnimation,
-                          builder: (context, child) {
-                            return Positioned(
-                              top: 200 * _scanAnimation.value,
-                              left: 0,
-                              right: 0,
-                              child: Container(
-                                height: 3,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.transparent,
-                                      AppColors.primaryColor.withOpacity(0.8),
-                                      Colors.transparent,
-                                    ],
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppColors.primaryColor.withOpacity(0.5),
-                                      blurRadius: 10,
-                                      spreadRadius: 2,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                        
-                        // Plant icon
-                        const Icon(
-                          Icons.local_florist,
-                          size: 40,
-                          color: Colors.white70,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-                  Text(
-                    _isCapturing ? 'Capturing...' : 'Analyzing plant...',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Please wait',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
+            child: ScanningAnimationWidget(
+              text: _isCapturing ? 'Capturing...' : 'Analyzing plant...',
             ),
           ),
       ],
@@ -595,8 +505,6 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver, Ticker
       );
     }
   }
-
-// In scanpage.dart, replace the _showResultsDialog method with this:
 
 void _showResultsDialog(PlantIdentification identification) {
   if (identification.results.isEmpty) {

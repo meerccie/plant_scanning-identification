@@ -1,0 +1,66 @@
+# This file must be in the root directory of your project.
+
+workflows:
+  # WORKFLOW 1: For creating the initial APK and registering it with Shorebird.
+  android-apk-release:
+    name: 🚀 Build & Register Initial APK
+    instance_type: mac_mini_m2
+
+    environment:
+      flutter: stable
+      groups:
+        - shorebird_credentials 
+        - keystore_credentials    
+        - api_keys                
+        - supabase_credentials    
+      android_signing:
+        - meerc # Replace with the reference name from Codemagic UI
+
+    scripts:
+      - name: 🐦 Install Shorebird CLI
+        script: |
+          curl --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
+          export PATH="$HOME/.shorebird/bin:$PATH"
+
+      - name: 🔐 Create .env file for build
+        script: |
+          #!/bin/bash
+          # This script writes the secure variables from Codemagic 
+          # into a .env file that your app can use during the build process.
+          
+          echo "PLANTNET_API_KEY=$PLANTNET_API_KEY" >> .env
+          echo "PLANTNET_PROJECT=$PLANTNET_PROJECT" >> .env # <-- NEW LINE ADDED
+          echo "SUPABASE_URL=$SUPABASE_URL" >> .env
+          echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> .env
+          echo "PERENUAL_API_KEY=$PERENUAL_API_KEY" >> .env
+          echo "GEMINI_API_KEY=$GEMINI_API_KEY" >> .env
+          echo "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY" >> .env
+
+      - name: 📦 Build and Register Shorebird APK
+        script: |
+          shorebird release android --artifact apk
+
+    artifacts:
+      - build/app/outputs/apk/release/app-release.apk
+
+  # --------------------------------------------------------------------------
+
+  # WORKFLOW 2: For pushing over-the-air (OTA) updates for an existing release.
+  android-patch-update:
+    name: 🩹 Push OTA Patch
+    instance_type: mac_mini_m2
+
+    environment:
+      flutter: stable
+      groups:
+        - shorebird_credentials
+
+    scripts:
+      - name: 🐦 Install Shorebird CLI
+        script: |
+          curl --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
+          export PATH="$HOME/.shorebird/bin:$PATH"
+
+      - name: 🩹 Create and Upload Patch
+        script: |
+          shorebird patch android --release-version latest

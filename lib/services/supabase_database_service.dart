@@ -305,9 +305,35 @@ class SupabaseDatabaseService {
     }
   }
 
+// ============================================================================
+  // PLANT LEDGER METHODS (UPDATED TO PREVENT DUPLICATES)
   // ============================================================================
-  // PLANT LEDGER METHODS
-  // ============================================================================
+
+  /// Check if a ledger entry already exists for this plant and action
+  static Future<bool> _ledgerEntryExists({
+    required String userId,
+    required String plantId,
+    required String action,
+  }) async {
+    try {
+      // Check for entries created within the last 5 minutes
+      final fiveMinutesAgo = DateTime.now().subtract(const Duration(minutes: 5)).toIso8601String();
+      
+      final result = await _client
+          .from('plant_ledger')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('plant_id', plantId)
+          .eq('action', action)
+          .gte('created_at', fiveMinutesAgo)
+          .limit(1);
+      
+      return result.isNotEmpty;
+    } catch (e) {
+      debugPrint('Warning: Could not check for duplicate ledger entry: $e');
+      return false; // If check fails, allow creation to proceed
+    }
+  }
 
   static Future<void> createLedgerEntry({
     required String userId,
@@ -316,17 +342,34 @@ class SupabaseDatabaseService {
     required String action,
     String? plantImageUrl,
   }) async {
-    await _insert(
-      table: 'plant_ledger',
-      data: {
-        'user_id': userId,
-        'plant_id': plantId,
-        'plant_name': plantName,
-        'plant_image_url': plantImageUrl,
-        'action': action,
-      },
-    );
-    debugPrint('✅ Ledger: $action for $plantName');
+    try {
+      // Check for duplicates first
+      final exists = await _ledgerEntryExists(
+        userId: userId,
+        plantId: plantId,
+        action: action,
+      );
+      
+      if (exists) {
+        debugPrint('⚠️ Ledger: Duplicate entry prevented for $action on $plantName');
+        return;
+      }
+      
+      await _insert(
+        table: 'plant_ledger',
+        data: {
+          'user_id': userId,
+          'plant_id': plantId,
+          'plant_name': plantName,
+          'plant_image_url': plantImageUrl,
+          'action': action,
+        },
+      );
+      debugPrint('✅ Ledger: $action for $plantName');
+    } catch (e) {
+      debugPrint('⚠️ Failed to create ledger entry: $e');
+      // Don't rethrow - ledger entries shouldn't block main operations
+    }
   }
 
   /// Async wrapper to avoid blocking on ledger creation
@@ -370,6 +413,19 @@ class SupabaseDatabaseService {
       orderBy: 'created_at',
       ascending: false,
     );
+  }
+
+  /// Optional: Method to clean up duplicate entries (run manually if needed)
+  static Future<void> cleanupDuplicateLedgerEntries(String userId) async {
+    try {
+      // This would require a database function to be created
+      await _client.rpc('cleanup_duplicate_ledger_entries', params: {
+        'target_user_id': userId,
+      });
+      debugPrint('✅ Cleaned up duplicate ledger entries for user $userId');
+    } catch (e) {
+      debugPrint('⚠️ Failed to cleanup duplicate entries: $e');
+    }
   }
 
   // ============================================================================

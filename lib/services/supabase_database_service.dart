@@ -4,21 +4,16 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 
-/// Centralized database service for all Supabase database operations
 class SupabaseDatabaseService {
   static SupabaseClient get _client => SupabaseService.client;
 
-  // ============================================================================
-  // PRIVATE HELPER METHODS
-  // ============================================================================
-
-  /// Generic error handler for PostgrestException
+  // Generic error handler
   static Never _handlePostgrestError(PostgrestException e, String operation) {
-    debugPrint('Postgrest error during $operation: ${e.message} (Code: ${e.code})');
+    debugPrint('Postgrest error during $operation: ${e.message}');
     throw Exception('Database error during $operation: ${e.message}');
   }
 
-  /// Generic select query with error handling
+  // Generic select query
   static Future<List<Map<String, dynamic>>> _selectList({
     required String table,
     String select = '*',
@@ -30,19 +25,16 @@ class SupabaseDatabaseService {
     try {
       dynamic query = _client.from(table).select(select);
 
-      // Apply filters
       if (filters != null) {
         filters.forEach((key, value) {
           query = query.eq(key, value);
         });
       }
 
-      // Apply ordering
       if (orderBy != null) {
         query = query.order(orderBy, ascending: ascending);
       }
 
-      // Apply limit
       if (limit != null) {
         query = query.limit(limit);
       }
@@ -54,7 +46,7 @@ class SupabaseDatabaseService {
     }
   }
 
-  /// Generic single row select with error handling
+  // Generic single row select
   static Future<Map<String, dynamic>?> _selectSingle({
     required String table,
     String select = '*',
@@ -69,12 +61,12 @@ class SupabaseDatabaseService {
           .maybeSingle();
       return result;
     } on PostgrestException catch (e) {
-      if (e.code == 'PGRST116') return null; // Not found
+      if (e.code == 'PGRST116') return null;
       _handlePostgrestError(e, 'select single from $table');
     }
   }
 
-  /// Generic insert with error handling
+  // Generic insert
   static Future<Map<String, dynamic>> _insert({
     required String table,
     required Map<String, dynamic> data,
@@ -87,7 +79,7 @@ class SupabaseDatabaseService {
     }
   }
 
-  /// Generic update with error handling
+  // Generic update
   static Future<void> _update({
     required String table,
     required Map<String, dynamic> updates,
@@ -101,130 +93,52 @@ class SupabaseDatabaseService {
     }
   }
 
-  /// Generic delete with error handling
+  // Generic delete
   static Future<void> _delete({
     required String table,
     required String filterKey,
     required dynamic filterValue,
+    Map<String, dynamic>? additionalFilter,
   }) async {
     try {
-      await _client.from(table).delete().eq(filterKey, filterValue);
+      dynamic query = _client.from(table).delete().eq(filterKey, filterValue);
+      
+      if (additionalFilter != null) {
+        additionalFilter.forEach((key, value) {
+          query = query.eq(key, value);
+        });
+      }
+      
+      await query;
     } on PostgrestException catch (e) {
       _handlePostgrestError(e, 'delete from $table');
     }
   }
 
-  // ============================================================================
-  // STORE SEARCH METHODS (UPDATED)
-  // ============================================================================
-
+  // Store search
   static Future<List<Map<String, dynamic>>> getNearbyStoresWithPlant({
     required double latitude,
     required double longitude,
     required String plantName,
-    double radiusInKm = 10.0,
+    double radiusInKm = 50.0,
   }) async {
     try {
-      // Use the correct function name that matches your database
-      final result = await _client.rpc('get_nearby_stores_with_plant', params: {
+      final result = await _client.rpc('get_nearby_stores_with_similar_plants', params: {
         'p_lat': latitude,
         'p_long': longitude,
         'p_plant_name': plantName,
         'p_radius_km': radiusInKm,
+        'similarity_threshold': 0.2,
       });
-      
-      debugPrint('🔍 Database search for "$plantName" found ${result.length} results');
+
       return List<Map<String, dynamic>>.from(result);
-    } on PostgrestException catch (e) {
-      debugPrint('❌ Database error searching for stores: ${e.message}');
-      
-      // Fallback: Try a simpler search if the function doesn't exist
-      if (e.message?.contains('function') == true) {
-        debugPrint('⚠️ Using fallback search method');
-        return await _fallbackStoreSearch(plantName, latitude, longitude, radiusInKm);
-      }
-      
-      _handlePostgrestError(e, 'get nearby stores with plant');
-    }
-  }
-
-  // Fallback method if the database function doesn't exist
-  static Future<List<Map<String, dynamic>>> _fallbackStoreSearch(
-    String plantName, 
-    double latitude, 
-    double longitude, 
-    double radiusInKm
-  ) async {
-    try {
-      // First, search for plants with similar names
-      final plantsResult = await _client
-          .from('plants')
-          .select('store_id, name, scientific_name')
-          .or('name.ilike.%$plantName%,scientific_name.ilike.%$plantName%')
-          .eq('is_available', true);
-
-      if (plantsResult.isEmpty) {
-        return [];
-      }
-
-      final storeIds = plantsResult.map((p) => p['store_id'] as String).toList();
-      
-      // Then get stores with location filtering
-      final storesResult = await _client
-          .from('stores')
-          .select('*')
-          .inFilter('id', storeIds)
-          .eq('is_active', true);
-
-      // Filter by distance manually
-      final nearbyStores = storesResult.where((store) {
-        final storeLat = store['latitude'] as double?;
-        final storeLng = store['longitude'] as double?;
-        
-        if (storeLat == null || storeLng == null) return false;
-        
-        final distance = _calculateDistance(latitude, longitude, storeLat, storeLng);
-        return distance <= radiusInKm;
-      }).toList();
-
-      // Combine store data with plant information
-      return nearbyStores.map((store) {
-        final storePlants = plantsResult.where((p) => p['store_id'] == store['id']).toList();
-        return {
-          ...store,
-          'matching_plants': storePlants,
-          'distance_km': _calculateDistance(latitude, longitude, store['latitude'], store['longitude']),
-        };
-      }).toList();
-      
     } catch (e) {
-      debugPrint('❌ Fallback store search failed: $e');
+      debugPrint('Search error: $e');
       return [];
     }
   }
 
-  // Helper method to calculate distance between coordinates
-  static double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const earthRadius = 6371.0; // Earth's radius in kilometers
-
-    final dLat = _toRadians(lat2 - lat1);
-    final dLon = _toRadians(lon2 - lon1);
-
-    final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(_toRadians(lat1)) * cos(_toRadians(lat2)) * sin(dLon / 2) * sin(dLon / 2);
-    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
-
-    return earthRadius * c;
-  }
-
-  static double _toRadians(double degree) {
-    return degree * pi / 180;
-  }
-
-  // ============================================================================
-  // USER PROFILE METHODS
-  // ============================================================================
-
+  // User profile methods
   static Future<Map<String, dynamic>?> getUserProfile(String userId) async {
     return _selectSingle(
       table: 'user_profiles',
@@ -261,7 +175,6 @@ class SupabaseDatabaseService {
         },
       );
     } on Exception catch (e) {
-      // If duplicate (23505), return existing profile
       if (e.toString().contains('23505')) {
         return getUserProfile(userId);
       }
@@ -280,78 +193,31 @@ class SupabaseDatabaseService {
     }
   }
 
-  // ============================================================================
-  // PLANT METHODS
-  // ============================================================================
-
+  // Plant methods
   static Future<List<Map<String, dynamic>>> getFeaturedPlants() async {
-    try {
-      // Get featured plant IDs
-      final idResult = await _selectList(
-        table: 'plants',
-        select: 'id',
-        filters: {'is_available': true, 'is_featured': true},
-        orderBy: 'created_at',
-        ascending: false,
-      );
-
-      final ids = idResult.map((p) => p['id'] as String).toList();
-      if (ids.isEmpty) return [];
-
-      // Shuffle and take random 10
-      ids.shuffle();
-      final randomIds = ids.take(10).toList();
-
-      // Fetch full plant data with store info
-      final result = await _client
-          .from('plants')
-          .select('*, stores!inner(*)')
-          .inFilter('id', randomIds);
-
-      return List<Map<String, dynamic>>.from(result);
-    } on PostgrestException catch (e) {
-      _handlePostgrestError(e, 'get featured plants');
-    }
+    return _selectList(
+      table: 'plants',
+      filters: {'is_available': true, 'is_featured': true},
+      orderBy: 'created_at',
+      ascending: false,
+      limit: 10,
+    );
   }
 
   static Future<Map<String, dynamic>?> getPlantById(String plantId) async {
-    try {
-      final result = await _client
-          .from('plants')
-          .select('*, stores!inner(*)')
-          .eq('id', plantId)
-          .single();
-      return result;
-    } on PostgrestException catch (e) {
-      if (e.code == 'PGRST116') return null;
-      _handlePostgrestError(e, 'get plant by ID');
-    }
+    return _selectSingle(
+      table: 'plants',
+      filterKey: 'id',
+      filterValue: plantId,
+    );
   }
 
   static Future<List<Map<String, dynamic>>> getAllStorePlants(String storeId) async {
-    try {
-      final result = await _client
-          .from('plants')
-          .select('*, stores!inner(*)')
-          .eq('store_id', storeId)
-          .order('created_at', ascending: false);
-      return List<Map<String, dynamic>>.from(result);
-    } on PostgrestException catch (e) {
-      _handlePostgrestError(e, 'get all store plants');
-    }
-  }
-
-  static Future<List<Map<String, dynamic>>> getFeaturedStorePlants(
-    String storeId, {
-    int limit = 5,
-  }) async {
     return _selectList(
       table: 'plants',
-      select: '*, stores!inner(*)',
-      filters: {'store_id': storeId, 'is_featured': true},
+      filters: {'store_id': storeId},
       orderBy: 'created_at',
       ascending: false,
-      limit: limit,
     );
   }
 
@@ -382,11 +248,7 @@ class SupabaseDatabaseService {
     );
   }
 
-  static Future<void> deletePlant(String plantId, Map<String, dynamic> plantDetails) async {
-    // FIX: Removed the duplicate ledger entry creation here. 
-    // The calling widget (_deletePlant in seller_my_plants.dart) now handles the ledger entry exclusively 
-    // to ensure it happens before the plant record is deleted.
-
+  static Future<void> deletePlant(String plantId) async {
     await _delete(table: 'plants', filterKey: 'id', filterValue: plantId);
   }
 
@@ -413,133 +275,21 @@ class SupabaseDatabaseService {
     }
   }
 
-  // ============================================================================
-  // PLANT LEDGER METHODS (UPDATED TO PREVENT DUPLICATES)
-  // ============================================================================
-
-  /// Check if a ledger entry already exists for this plant and action
-  static Future<bool> _ledgerEntryExists({
-    required String userId,
-    required String plantId,
-    required String action,
+  static Future<List<Map<String, dynamic>>> getFeaturedStorePlants(
+    String storeId, {
+    int limit = 5,
   }) async {
-    try {
-      // Check for entries created within the last 5 minutes
-      final fiveMinutesAgo = DateTime.now().subtract(const Duration(minutes: 5)).toIso8601String();
-      
-      final result = await _client
-          .from('plant_ledger')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('plant_id', plantId)
-          .eq('action', action)
-          .gte('created_at', fiveMinutesAgo)
-          .limit(1);
-      
-      return result.isNotEmpty;
-    } catch (e) {
-      debugPrint('Warning: Could not check for duplicate ledger entry: $e');
-      return false; // If check fails, allow creation to proceed
-    }
-  }
-
-  static Future<void> createLedgerEntry({
-    required String userId,
-    required String plantId,
-    required String plantName,
-    required String action,
-    String? plantImageUrl,
-  }) async {
-    try {
-      // Check for duplicates first
-      final exists = await _ledgerEntryExists(
-        userId: userId,
-        plantId: plantId,
-        action: action,
-      );
-      
-      if (exists) {
-        debugPrint('⚠️ Ledger: Duplicate entry prevented for $action on $plantName');
-        return;
-      }
-      
-      await _insert(
-        table: 'plant_ledger',
-        data: {
-          'user_id': userId,
-          'plant_id': plantId,
-          'plant_name': plantName,
-          'plant_image_url': plantImageUrl,
-          'action': action,
-        },
-      );
-      debugPrint('✅ Ledger: $action for $plantName');
-    } catch (e) {
-      debugPrint('⚠️ Failed to create ledger entry: $e');
-      // Don't rethrow - ledger entries shouldn't block main operations
-    }
-  }
-
-  /// Async wrapper to avoid blocking on ledger creation
-  static void _createLedgerEntryAsync({
-    required String userId,
-    required String plantId,
-    required String plantName,
-    required String action,
-    String? plantImageUrl,
-  }) {
-    createLedgerEntry(
-      userId: userId,
-      plantId: plantId,
-      plantName: plantName,
-      action: action,
-      plantImageUrl: plantImageUrl,
-    ).catchError((e) {
-      debugPrint('⚠️ Failed to create ledger entry: $e');
-    });
-  }
-
-  static Future<void> createDeletedPlantLedgerEntry({
-    required String userId,
-    required String plantId,
-    required String plantName,
-    String? plantImageUrl,
-  }) async {
-    await createLedgerEntry(
-      userId: userId,
-      plantId: plantId,
-      plantName: plantName,
-      action: 'DELETED',
-      plantImageUrl: plantImageUrl,
-    );
-  }
-
-  static Future<List<Map<String, dynamic>>> getPlantLedgerHistory(String userId) async {
     return _selectList(
-      table: 'plant_ledger',
-      filters: {'user_id': userId},
+      table: 'plants',
+      select: '*, stores!inner(*)',
+      filters: {'store_id': storeId, 'is_featured': true},
       orderBy: 'created_at',
       ascending: false,
+      limit: limit,
     );
   }
 
-  /// Optional: Method to clean up duplicate entries (run manually if needed)
-  static Future<void> cleanupDuplicateLedgerEntries(String userId) async {
-    try {
-      // This would require a database function to be created
-      await _client.rpc('cleanup_duplicate_ledger_entries', params: {
-        'target_user_id': userId,
-      });
-      debugPrint('✅ Cleaned up duplicate ledger entries for user $userId');
-    } catch (e) {
-      debugPrint('⚠️ Failed to cleanup duplicate entries: $e');
-    }
-  }
-
-  // ============================================================================
-  // STORE METHODS
-  // ============================================================================
-
+  // Store methods
   static Future<List<Map<String, dynamic>>> getStoresByUser(String userId) async {
     return _selectList(
       table: 'stores',
@@ -572,10 +322,7 @@ class SupabaseDatabaseService {
     }
   }
 
-  // ============================================================================
-  // FAVORITE METHODS
-  // ============================================================================
-
+  // Favorite methods
   static Future<List<String>> getFavoritePlants(String userId) async {
     final result = await _selectList(
       table: 'favorite_plants',
@@ -593,15 +340,12 @@ class SupabaseDatabaseService {
   }
 
   static Future<void> removeFavoritePlant(String userId, String plantId) async {
-    try {
-      await _client
-          .from('favorite_plants')
-          .delete()
-          .eq('user_id', userId)
-          .eq('plant_id', plantId);
-    } on PostgrestException catch (e) {
-      _handlePostgrestError(e, 'remove favorite plant');
-    }
+    await _delete(
+      table: 'favorite_plants',
+      filterKey: 'user_id',
+      filterValue: userId,
+      additionalFilter: {'plant_id': plantId},
+    );
   }
 
   static Future<List<String>> getFavoriteStores(String userId) async {
@@ -621,15 +365,12 @@ class SupabaseDatabaseService {
   }
 
   static Future<void> removeFavoriteStore(String userId, String storeId) async {
-    try {
-      await _client
-          .from('favorite_stores')
-          .delete()
-          .eq('user_id', userId)
-          .eq('store_id', storeId);
-    } on PostgrestException catch (e) {
-      _handlePostgrestError(e, 'remove favorite store');
-    }
+    await _delete(
+      table: 'favorite_stores',
+      filterKey: 'user_id',
+      filterValue: userId,
+      additionalFilter: {'store_id': storeId},
+    );
   }
 
   static Future<List<Map<String, dynamic>>> getPlantsFromFavoriteStores(
@@ -652,10 +393,7 @@ class SupabaseDatabaseService {
     }
   }
 
-  // ============================================================================
-  // NOTIFICATION METHODS
-  // ============================================================================
-
+  // Notification methods
   static Future<List<Map<String, dynamic>>> getNotifications(String userId) async {
     return _selectList(
       table: 'notifications',
@@ -701,19 +439,75 @@ class SupabaseDatabaseService {
     );
   }
 
-  // ============================================================================
-  // PLANT SCAN HISTORY METHODS
-  // ============================================================================
+  // Plant ledger methods
+  static Future<List<Map<String, dynamic>>> getPlantLedgerHistory(String userId) async {
+    return _selectList(
+      table: 'plant_ledger',
+      filters: {'user_id': userId},
+      orderBy: 'created_at',
+      ascending: false,
+    );
+  }
 
-  static Future<void> createPlantScan(Map<String, dynamic> scanData) async {
-    // Trigger cleanup asynchronously (don't wait)
-    _client.rpc('delete_old_plant_scans').then((_) {
-      debugPrint('✅ Triggered old scan cleanup');
-    }).catchError((e) {
-      debugPrint('⚠️ Failed to trigger scan cleanup: $e');
+  static Future<void> createDeletedPlantLedgerEntry({
+    required String userId,
+    required String plantId,
+    required String plantName,
+    String? plantImageUrl,
+  }) async {
+    await createLedgerEntry(
+      userId: userId,
+      plantId: plantId,
+      plantName: plantName,
+      action: 'DELETED',
+      plantImageUrl: plantImageUrl,
+    );
+  }
+
+  static Future<void> createLedgerEntry({
+    required String userId,
+    required String plantId,
+    required String plantName,
+    required String action,
+    String? plantImageUrl,
+  }) async {
+    try {
+      await _insert(
+        table: 'plant_ledger',
+        data: {
+          'user_id': userId,
+          'plant_id': plantId,
+          'plant_name': plantName,
+          'plant_image_url': plantImageUrl,
+          'action': action,
+        },
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to create ledger entry: $e');
+    }
+  }
+
+  /// Async wrapper to avoid blocking on ledger creation
+  static void _createLedgerEntryAsync({
+    required String userId,
+    required String plantId,
+    required String plantName,
+    required String action,
+    String? plantImageUrl,
+  }) {
+    createLedgerEntry(
+      userId: userId,
+      plantId: plantId,
+      plantName: plantName,
+      action: action,
+      plantImageUrl: plantImageUrl,
+    ).catchError((e) {
+      debugPrint('⚠️ Failed to create ledger entry: $e');
     });
+  }
 
-    // Insert new scan
+  // Plant scan methods
+  static Future<void> createPlantScan(Map<String, dynamic> scanData) async {
     await _insert(table: 'plant_scans', data: scanData);
   }
 
@@ -724,5 +518,23 @@ class SupabaseDatabaseService {
       orderBy: 'created_at',
       ascending: false,
     );
+  }
+
+  // Helper method to calculate distance between coordinates
+  static double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    const earthRadius = 6371.0; // Earth's radius in kilometers
+
+    final dLat = _toRadians(lat2 - lat1);
+    final dLon = _toRadians(lon2 - lon1);
+
+    final a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(_toRadians(lat1)) * cos(_toRadians(lat2)) * sin(dLon / 2) * sin(dLon / 2);
+    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+
+    return earthRadius * c;
+  }
+
+  static double _toRadians(double degree) {
+    return degree * pi / 180;
   }
 }

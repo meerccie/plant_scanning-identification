@@ -28,10 +28,7 @@ class SupabaseStorageService {
       final filePath = '$userId/$fileName';
 
       await _client.storage.from(bucket).upload(filePath, imageFile);
-      final publicUrl = _client.storage.from(bucket).getPublicUrl(filePath);
-      
-      debugPrint('Image uploaded successfully: $publicUrl');
-      return publicUrl;
+      return _client.storage.from(bucket).getPublicUrl(filePath);
     } on StorageException catch (e) {
       debugPrint('Storage error during upload: ${e.message}');
       rethrow;
@@ -49,11 +46,9 @@ class SupabaseStorageService {
       if (bucketIndex != -1 && bucketIndex < pathSegments.length - 1) {
         final filePath = pathSegments.sublist(bucketIndex + 1).join('/');
         await _client.storage.from(bucket).remove([filePath]);
-        debugPrint('Image deleted successfully: $imageUrl');
       }
     } on StorageException catch (e) {
       debugPrint('Storage error deleting image: ${e.message}');
-      rethrow;
     }
   }
 

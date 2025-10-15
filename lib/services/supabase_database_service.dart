@@ -1,4 +1,5 @@
 // lib/services/supabase_database_service.dart
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
@@ -111,6 +112,113 @@ class SupabaseDatabaseService {
     } on PostgrestException catch (e) {
       _handlePostgrestError(e, 'delete from $table');
     }
+  }
+
+  // ============================================================================
+  // STORE SEARCH METHODS (UPDATED)
+  // ============================================================================
+
+  static Future<List<Map<String, dynamic>>> getNearbyStoresWithPlant({
+    required double latitude,
+    required double longitude,
+    required String plantName,
+    double radiusInKm = 10.0,
+  }) async {
+    try {
+      // Use the correct function name that matches your database
+      final result = await _client.rpc('get_nearby_stores_with_plant', params: {
+        'p_lat': latitude,
+        'p_long': longitude,
+        'p_plant_name': plantName,
+        'p_radius_km': radiusInKm,
+      });
+      
+      debugPrint('🔍 Database search for "$plantName" found ${result.length} results');
+      return List<Map<String, dynamic>>.from(result);
+    } on PostgrestException catch (e) {
+      debugPrint('❌ Database error searching for stores: ${e.message}');
+      
+      // Fallback: Try a simpler search if the function doesn't exist
+      if (e.message?.contains('function') == true) {
+        debugPrint('⚠️ Using fallback search method');
+        return await _fallbackStoreSearch(plantName, latitude, longitude, radiusInKm);
+      }
+      
+      _handlePostgrestError(e, 'get nearby stores with plant');
+    }
+  }
+
+  // Fallback method if the database function doesn't exist
+  static Future<List<Map<String, dynamic>>> _fallbackStoreSearch(
+    String plantName, 
+    double latitude, 
+    double longitude, 
+    double radiusInKm
+  ) async {
+    try {
+      // First, search for plants with similar names
+      final plantsResult = await _client
+          .from('plants')
+          .select('store_id, name, scientific_name')
+          .or('name.ilike.%$plantName%,scientific_name.ilike.%$plantName%')
+          .eq('is_available', true);
+
+      if (plantsResult.isEmpty) {
+        return [];
+      }
+
+      final storeIds = plantsResult.map((p) => p['store_id'] as String).toList();
+      
+      // Then get stores with location filtering
+      final storesResult = await _client
+          .from('stores')
+          .select('*')
+          .inFilter('id', storeIds)
+          .eq('is_active', true);
+
+      // Filter by distance manually
+      final nearbyStores = storesResult.where((store) {
+        final storeLat = store['latitude'] as double?;
+        final storeLng = store['longitude'] as double?;
+        
+        if (storeLat == null || storeLng == null) return false;
+        
+        final distance = _calculateDistance(latitude, longitude, storeLat, storeLng);
+        return distance <= radiusInKm;
+      }).toList();
+
+      // Combine store data with plant information
+      return nearbyStores.map((store) {
+        final storePlants = plantsResult.where((p) => p['store_id'] == store['id']).toList();
+        return {
+          ...store,
+          'matching_plants': storePlants,
+          'distance_km': _calculateDistance(latitude, longitude, store['latitude'], store['longitude']),
+        };
+      }).toList();
+      
+    } catch (e) {
+      debugPrint('❌ Fallback store search failed: $e');
+      return [];
+    }
+  }
+
+  // Helper method to calculate distance between coordinates
+  static double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    const earthRadius = 6371.0; // Earth's radius in kilometers
+
+    final dLat = _toRadians(lat2 - lat1);
+    final dLon = _toRadians(lon2 - lon1);
+
+    final a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(_toRadians(lat1)) * cos(_toRadians(lat2)) * sin(dLon / 2) * sin(dLon / 2);
+    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+
+    return earthRadius * c;
+  }
+
+  static double _toRadians(double degree) {
+    return degree * pi / 180;
   }
 
   // ============================================================================
@@ -305,7 +413,7 @@ class SupabaseDatabaseService {
     }
   }
 
-// ============================================================================
+  // ============================================================================
   // PLANT LEDGER METHODS (UPDATED TO PREVENT DUPLICATES)
   // ============================================================================
 
@@ -461,25 +569,6 @@ class SupabaseDatabaseService {
       return List<Map<String, dynamic>>.from(result);
     } on PostgrestException catch (e) {
       _handlePostgrestError(e, 'get stores by IDs');
-    }
-  }
-
-  static Future<List<Map<String, dynamic>>> getNearbyStoresWithPlant({
-    required double latitude,
-    required double longitude,
-    required String plantName,
-    double radiusInKm = 10.0,
-  }) async {
-    try {
-      final result = await _client.rpc('get_nearby_stores_with_plant', params: {
-        'lat': latitude,
-        'long': longitude,
-        'search_term': plantName,
-        'radius_km': radiusInKm,
-      });
-      return List<Map<String, dynamic>>.from(result);
-    } on PostgrestException catch (e) {
-      _handlePostgrestError(e, 'get nearby stores with plant');
     }
   }
 

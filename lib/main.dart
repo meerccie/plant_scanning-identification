@@ -1,11 +1,11 @@
-// lib/main.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:my_plant/providers/permission_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_links/app_links.dart';
 
+// Corrected relative imports
+import 'providers/permission_provider.dart';
 import 'components/app_colors.dart';
 import 'widgets/supabase_error_widget.dart';
 import 'pages/firstpage.dart';
@@ -18,14 +18,14 @@ import 'services/supabase_service.dart';
 import 'config/app_routes.dart';
 import 'config/app_theme.dart';
 import 'config/env_config.dart';
-import 'pages/profile_page.dart'; // Import for lock screen navigation
+import 'pages/profile_page.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 bool isSupabaseInitialized = false;
 
 Future<void> _initializeServices() async {
   try {
-    // Initialize Supabase
+    await EnvConfig.load();
     await SupabaseService.initialize();
     isSupabaseInitialized = SupabaseService.isInitialized;
 
@@ -39,10 +39,6 @@ Future<void> _initializeServices() async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Use EnvConfig to load environment variables
-  await EnvConfig.load();
-
   await _initializeServices();
   runApp(const MyApp());
 }
@@ -64,7 +60,6 @@ class _MyAppState extends State<MyApp> {
     if (!isSupabaseInitialized) return;
     _initDeepLinks();
     _setupAuthStateListener();
-    _setupServiceListeners();
   }
 
   @override
@@ -75,29 +70,17 @@ class _MyAppState extends State<MyApp> {
 
   void _setupAuthStateListener() {
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-      final event = data.event;
+      final AuthChangeEvent event = data.event;
       if (event == AuthChangeEvent.signedOut) {
         navigatorKey.currentContext?.read<PlantProvider>().clearAllFavorites();
-
-        // Clear sensitive cache on sign out
-        _clearSensitiveCache();
       }
+      // The AuthProvider will handle other events like passwordRecovery.
     });
   }
 
-  void _setupServiceListeners() {
-    // Listen for network connectivity changes if needed
-  }
-
-  void _clearSensitiveCache() {
-    // Clear any user-specific cache if needed
-  }
-
   Future<void> _handleDeepLink(Uri uri) async {
-    if (uri.fragment.isEmpty && uri.query.isEmpty) {
-      return;
-    }
-
+    // Let the Supabase client handle session recovery from the URL.
+    // The AuthProvider's listener will then pick up the state change.
     try {
       await Supabase.instance.client.auth.getSessionFromUrl(uri);
     } catch (e) {
@@ -135,7 +118,6 @@ class _MyAppState extends State<MyApp> {
         theme: AppTheme.lightTheme,
         home: const AuthWrapper(),
         onGenerateRoute: AppRoutes.onGenerateRoute,
-        // Enhanced error handling for the entire app
         builder: (context, child) {
           return MediaQuery(
             data: MediaQuery.of(context)
@@ -148,8 +130,15 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _isNavigatingToReset = false;
 
   @override
   Widget build(BuildContext context) {
@@ -157,6 +146,7 @@ class AuthWrapper extends StatelessWidget {
       return SupabaseErrorWidget(
         onRetry: () async {
           await _initializeServices();
+          (navigatorKey.currentContext as Element).reassemble();
         },
         errorMessage:
             'Failed to connect to the database. Please check your internet connection and try again.',
@@ -183,35 +173,41 @@ class AuthWrapper extends StatelessWidget {
           );
         }
 
-        // ADDITION: Check for the password recovery state after deep link processing
-        if (authProvider.isPasswordRecoveryInProgress && authProvider.isAuthenticated) {
-          // Use a post frame callback to navigate immediately after the build cycle
+        // Handle password recovery - prevent duplicate navigation
+        if (authProvider.isPasswordRecoveryInProgress && !_isNavigatingToReset) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-             Navigator.of(context).pushReplacementNamed(
+            if (mounted && !_isNavigatingToReset) {
+              _isNavigatingToReset = true;
+              Navigator.of(context).pushNamedAndRemoveUntil(
                 AppRoutes.passwordResetCombined,
-                arguments: authProvider.user?.email ?? '',
+                (route) => false,
               );
+            }
           });
-          // Show a temporary loading screen while navigation happens
+          
+          // Show loading while navigating
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
+        // Reset the flag when not in recovery mode
+        if (!authProvider.isPasswordRecoveryInProgress) {
+          _isNavigatingToReset = false;
+        }
+
         if (authProvider.isAuthenticated) {
-          // FIX: Removed the call to checkPermissions from the build method.
-          // The PermissionProvider already calls this in its own constructor.
           return authProvider.userType == 'seller'
               ? const SellerMainNavigation()
               : const MainNavigation();
         }
+
         return const Firstpage();
       },
     );
   }
 }
 
-// NEW WIDGET: Wraps the main app and shows a lock screen if permissions are not granted.
 class PermissionWrapper extends StatelessWidget {
   final Widget child;
   const PermissionWrapper({super.key, required this.child});
@@ -225,20 +221,17 @@ class PermissionWrapper extends StatelessWidget {
               body: Center(child: CircularProgressIndicator()));
         }
 
-        // For sellers, we only check location. For users, we check both.
         final authProvider = context.read<AuthProvider>();
-        final bool permissionsGranted =
-            authProvider.userType == 'seller'
-                ? permissionProvider.isLocationGranted
-                : permissionProvider.areAllPermissionsGranted;
+        final bool permissionsGranted = authProvider.userType == 'seller'
+            ? permissionProvider.isLocationGranted
+            : permissionProvider.areAllPermissionsGranted;
 
         if (permissionsGranted) {
           return child;
         } else {
-          // Show the main app but with a lock screen overlay
           return Stack(
             children: [
-              child, // The main UI is behind the overlay
+              child,
               const PermissionLockScreen(),
             ],
           );
@@ -248,7 +241,6 @@ class PermissionWrapper extends StatelessWidget {
   }
 }
 
-// NEW WIDGET: The overlay that blocks the app and directs users to settings.
 class PermissionLockScreen extends StatelessWidget {
   const PermissionLockScreen({super.key});
 
@@ -289,7 +281,6 @@ class PermissionLockScreen extends StatelessWidget {
                 icon: const Icon(Icons.settings),
                 label: const Text('Go to Settings'),
                 onPressed: () {
-                  // Navigate to a new instance of the Profile Page
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const ProfilePage()),

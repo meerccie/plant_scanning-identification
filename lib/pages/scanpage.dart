@@ -302,25 +302,29 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   }
 
   Widget _buildCameraView() {
+    final cameraAspectRatio = _controller!.value.previewSize != null 
+        ? _controller!.value.previewSize!.width / _controller!.value.previewSize!.height
+        : 3 / 4; // Fallback aspect ratio
+
     return Stack(
       fit: StackFit.expand,
       children: [
-        // FIX: This structure prevents the camera preview from stretching.
-        SizedBox.expand(
-          child: FittedBox(
-            fit: BoxFit.cover,
-            child: SizedBox(
-              width: _controller!.value.previewSize!.height,
-              height: _controller!.value.previewSize!.width,
-              child: _capturedImageFile == null
-                  ? CameraPreview(_controller!)
-                  : Image.file(
-                      File(_capturedImageFile!.path),
-                      fit: BoxFit.contain,
-                    ),
+        // FIXED: Camera preview with proper aspect ratio
+        if (_capturedImageFile == null)
+          AspectRatio(
+            aspectRatio: cameraAspectRatio,
+            child: CameraPreview(_controller!),
+          )
+        else
+          Center(
+            child: AspectRatio(
+              aspectRatio: cameraAspectRatio,
+              child: Image.file(
+                File(_capturedImageFile!.path),
+                fit: BoxFit.cover,
+              ),
             ),
           ),
-        ),
         
         // Scanning frame overlay
         if (_capturedImageFile == null)

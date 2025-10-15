@@ -14,14 +14,9 @@ workflows:
         - api_keys                
         - supabase_credentials    
       android_signing:
-        - meerc # Replace with the reference name from Codemagic UI
+        - your_keystore_reference_name # Replace with the reference name from Codemagic UI
 
     scripts:
-      - name: 🐦 Install Shorebird CLI
-        script: |
-          curl --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
-          export PATH="$HOME/.shorebird/bin:$PATH"
-
       - name: 🔐 Create .env file for build
         script: |
           #!/bin/bash
@@ -29,15 +24,26 @@ workflows:
           # into a .env file that your app can use during the build process.
           
           echo "PLANTNET_API_KEY=$PLANTNET_API_KEY" >> .env
-          echo "PLANTNET_PROJECT=$PLANTNET_PROJECT" >> .env # <-- NEW LINE ADDED
+          echo "PLANTNET_PROJECT=$PLANTNET_PROJECT" >> .env
           echo "SUPABASE_URL=$SUPABASE_URL" >> .env
           echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> .env
           echo "PERENUAL_API_KEY=$PERENUAL_API_KEY" >> .env
           echo "GEMINI_API_KEY=$GEMINI_API_KEY" >> .env
+          echo "GOOGLE_MAPS_API_KEY=$GOOGLE_MAPS_API_KEY" >> .env
+          echo "OPENWEATHER_API_KEY=$OPENWEATHER_API_KEY" >> .env
           echo "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY" >> .env
 
       - name: 📦 Build and Register Shorebird APK
         script: |
+          #!/bin/bash
+          
+          # Install Shorebird CLI
+          curl --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
+          
+          # Add Shorebird to the PATH for this script execution
+          export PATH="$HOME/.shorebird/bin:$PATH"
+          
+          # Run the release command
           shorebird release android --artifact apk
 
     artifacts:
@@ -56,11 +62,15 @@ workflows:
         - shorebird_credentials
 
     scripts:
-      - name: 🐦 Install Shorebird CLI
-        script: |
-          curl --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
-          export PATH="$HOME/.shorebird/bin:$PATH"
-
       - name: 🩹 Create and Upload Patch
         script: |
+          #!/bin/bash
+          
+          # Install Shorebird CLI
+          curl --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
+          
+          # Add Shorebird to the PATH for this script execution
+          export PATH="$HOME/.shorebird/bin:$PATH"
+
+          # Run the patch command
           shorebird patch android --release-version latest

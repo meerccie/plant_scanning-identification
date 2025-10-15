@@ -4,13 +4,12 @@ workflows:
     
     # 1. TRIGGERS: Only run this workflow when a new tag is created.
     triggering:
-      # FIX 1: Set branch to 'main' and use 'ignore' to disable push builds.
-      # This is the correct way to ignore pushes in Codemagic YAML.
+      # FIX: Disables automatic builds on push to main branch
       branch:
         - pattern: main
           ignore: true
           
-      # FIX 2: Correct indentation for tag structure
+      # Only runs when a tag matching the version pattern is pushed
       tag:
         pattern: v*.*.*
         
@@ -20,8 +19,8 @@ workflows:
       xcode: latest
       cocoapods: default
       
-      # Define environment variables. These variables are references to
-      # the secure secrets you must set up in the Codemagic web UI.
+      # Define environment variables. These are references to the secure secrets
+      # you must set up in the Codemagic web UI.
       vars:
         # Shorebird Token (must be uploaded as a secure secret)
         SHOREBIRD_TOKEN: $SHOREBIRD_TOKEN 
@@ -35,7 +34,7 @@ workflows:
     # 3. CACHING: Speeds up subsequent builds significantly.
     cache:
       cache_paths:
-        # FIX 3: Removed extra spaces for valid list format
+        # Corrected list format
         - .gradle/caches
         - $FLUTTER_ROOT/.pub-cache
         - $HOME/.cocoapods/repos
@@ -52,7 +51,6 @@ workflows:
           export PATH="$PATH:$HOME/.shorebird/bin"
           
           # Log in using the secure token
-          # This line uses the token reference correctly.
           shorebird login --ci --token "$SHOREBIRD_TOKEN"
 
       # B. MAIN BUILD SCRIPT: Builds the app with Shorebird.
@@ -66,6 +64,7 @@ workflows:
           flutter test
           
           # CRITICAL: Use --apk-build-mode release to force an APK output
+          # This resolves the "Could not find an option named --apk" error.
           shorebird release android --apk-build-mode release
           
     # 5. ARTIFACTS: Defines where the final APK file can be found.

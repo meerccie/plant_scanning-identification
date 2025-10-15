@@ -22,6 +22,7 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _hasNavigatedAway = false; // ADD THIS FLAG
 
   @override
   void dispose() {
@@ -58,14 +59,14 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
   }
 
   Future<void> _handleResetPassword() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate() || _hasNavigatedAway) return;
 
     setState(() => _isLoading = true);
 
     try {
       final success = await SupabaseAuthService.updatePassword(_passwordController.text);
       
-      if (success && mounted) {
+      if (success && mounted && !_hasNavigatedAway) {
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -78,13 +79,14 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
         // Wait a moment for the user to see the message
         await Future.delayed(const Duration(milliseconds: 500));
 
-        if (mounted) {
+        if (mounted && !_hasNavigatedAway) {
+          _hasNavigatedAway = true; // Set flag to prevent duplicate navigation
           // Navigate to login and remove all previous routes
           Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
         }
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && !_hasNavigatedAway) {
         String errorMessage = 'Failed to reset password. Please try again.';
         
         // Handle specific error cases
@@ -103,7 +105,7 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
         );
       }
     } finally {
-      if (mounted) {
+      if (mounted && !_hasNavigatedAway) {
         setState(() => _isLoading = false);
       }
     }

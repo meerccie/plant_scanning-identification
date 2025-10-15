@@ -183,6 +183,21 @@ class AuthWrapper extends StatelessWidget {
           );
         }
 
+        // ADDITION: Check for the password recovery state after deep link processing
+        if (authProvider.isPasswordRecoveryInProgress && authProvider.isAuthenticated) {
+          // Use a post frame callback to navigate immediately after the build cycle
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+             Navigator.of(context).pushReplacementNamed(
+                AppRoutes.passwordResetCombined,
+                arguments: authProvider.user?.email ?? '',
+              );
+          });
+          // Show a temporary loading screen while navigation happens
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
         if (authProvider.isAuthenticated) {
           // FIX: Removed the call to checkPermissions from the build method.
           // The PermissionProvider already calls this in its own constructor.

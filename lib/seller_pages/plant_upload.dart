@@ -26,7 +26,7 @@ class _UpdatedPlantUploadPageState extends State<UpdatedPlantUploadPage> {
   final TextEditingController _descriptionController = TextEditingController();
 
   File? _imageFile;
-  bool _isUploading = false;
+  bool _isUploading = false; // Controls all API operations
   Map<String, dynamic>? _store;
   bool _isFeatured = false;
   bool _isIdentified = false;
@@ -60,6 +60,9 @@ class _UpdatedPlantUploadPageState extends State<UpdatedPlantUploadPage> {
   }
 
   Future<void> _submitForm() async {
+    // FIX: Add check for existing upload process
+    if (_isUploading) return;
+    
     if (!_formKey.currentState!.validate() ||
         _imageFile == null ||
         _store == null) {
@@ -80,6 +83,7 @@ class _UpdatedPlantUploadPageState extends State<UpdatedPlantUploadPage> {
       return;
     }
 
+    // FIX: Set _isUploading immediately at the start of the process
     setState(() => _isUploading = true);
 
     try {
@@ -99,16 +103,13 @@ class _UpdatedPlantUploadPageState extends State<UpdatedPlantUploadPage> {
         'is_featured': _isFeatured,
       };
 
+      // This performs the database insert AND creates the ledger entry
       final newPlant = await SupabaseDatabaseService.createPlant(plantData);
       
       if (!mounted) return;
 
-      await SupabaseDatabaseService.createLedgerEntry(
-        plantId: newPlant['id'].toString(),
-        plantName: newPlant['name'] ?? 'Unnamed Plant',
-        action: 'UPLOAD',
-        userId: context.read<AuthProvider>().user!.id,
-      );
+      // REMOVED: Redundant explicit call to createLedgerEntry here. 
+      // It is now handled inside SupabaseDatabaseService.createPlant(plantData).
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -129,6 +130,7 @@ class _UpdatedPlantUploadPageState extends State<UpdatedPlantUploadPage> {
         );
       }
     } finally {
+      // FIX: Ensure _isUploading is reset only when mounted
       if (mounted) {
         setState(() => _isUploading = false);
       }
@@ -138,6 +140,9 @@ class _UpdatedPlantUploadPageState extends State<UpdatedPlantUploadPage> {
   Future<void> _identifyPlant() async {
     if (_imageFile == null) return;
     
+    // Check if another API call is already running
+    if (_isUploading) return; 
+
     setState(() => _isUploading = true);
     _isIdentified = false;
 
@@ -312,6 +317,7 @@ class _UpdatedPlantUploadPageState extends State<UpdatedPlantUploadPage> {
                             ),
                           ),
                           const SizedBox(height: 20),
+                          // The CustomButton handles the isLoading state
                           ElevatedButton(
                             onPressed: _isUploading || !fieldsEnabled
                                 ? null

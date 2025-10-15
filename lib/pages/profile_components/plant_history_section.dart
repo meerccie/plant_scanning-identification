@@ -101,11 +101,15 @@ class PlantHistorySection extends StatelessWidget {
                           )
                         : Icon(style['icon'], color: style['color']),
                   ),
+                  // FIX: Use Theme.of(context).textTheme.bodyLarge for default font
                   title: Text(entry['plant_name'] ?? 'Unnamed Plant',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Colors.white, fontWeight: FontWeight.w500)),
+                  // FIX: Use Theme.of(context).textTheme.bodyMedium for default font
                   subtitle: Text(
                       '${style['message']} on $formattedDate',
-                      style: TextStyle(color: Colors.white70.withOpacity(0.8))),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.white70.withOpacity(0.8))),
                   trailing: Text(
                     entry['action'] ?? '',
                     style: TextStyle(

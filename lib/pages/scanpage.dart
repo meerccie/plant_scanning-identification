@@ -293,16 +293,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
               alignment: Alignment.center,
               children: [
                 if (_capturedImageFile == null)
-                  SizedBox.expand(
-                    child: FittedBox(
-                      fit: BoxFit.cover,
-                      child: SizedBox(
-                        width: _controller!.value.previewSize!.width,
-                        height: _controller!.value.previewSize!.height,
-                        child: CameraPreview(_controller!),
-                      ),
-                    ),
-                  ),
+                  _buildCameraPreview(context), // MODIFIED: Call helper function
                 if (_capturedImageFile != null)
                   SizedBox.expand(
                     child: Image.file(
@@ -330,6 +321,41 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: _buildFloatingActionButton(),
+    );
+  }
+
+  // ADDED: New helper function to fix camera stretching
+  Widget _buildCameraPreview(BuildContext context) {
+    // Determine the available size for the camera preview
+    final size = MediaQuery.of(context).size;
+    
+    // Calculate the screen aspect ratio
+    final deviceRatio = size.width / size.height;
+    
+    // Get the camera's aspect ratio (from the controller)
+    final cameraRatio = _controller!.value.aspectRatio;
+    
+    // Calculate the scale factor required to fill the device ratio with the camera ratio
+    // If device is taller than camera (deviceRatio < cameraRatio), scale up vertically
+    // If device is wider than camera (deviceRatio > cameraRatio), scale up horizontally
+    double scale = cameraRatio / deviceRatio;
+    
+    // If the ratio calculation results in a scale factor less than 1, invert it 
+    // to ensure we always scale up (crop to fit) rather than scale down (letterbox)
+    if (scale < 1) {
+      scale = 1 / scale;
+    }
+
+    return Transform.scale(
+      scale: scale,
+      alignment: Alignment.center, // Center the scaled preview
+      child: Center(
+        child: AspectRatio(
+          // Use the camera's native aspect ratio to prevent stretching
+          aspectRatio: cameraRatio, 
+          child: CameraPreview(_controller!),
+        ),
+      ),
     );
   }
 
@@ -506,4 +532,3 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
     );
   }
 }
-

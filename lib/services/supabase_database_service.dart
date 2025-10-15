@@ -183,6 +183,8 @@ class SupabaseDatabaseService {
         table: 'plants',
         select: 'id',
         filters: {'is_available': true, 'is_featured': true},
+        orderBy: 'created_at',
+        ascending: false,
       );
 
       final ids = idResult.map((p) => p['id'] as String).toList();
@@ -273,17 +275,9 @@ class SupabaseDatabaseService {
   }
 
   static Future<void> deletePlant(String plantId, Map<String, dynamic> plantDetails) async {
-    final userId = SupabaseService.currentUser?.id;
-    
-    // Create ledger entry before deletion
-    if (userId != null) {
-      await createDeletedPlantLedgerEntry(
-        userId: userId,
-        plantId: plantId,
-        plantName: plantDetails['name'] as String,
-        plantImageUrl: plantDetails['image_url'] as String?,
-      );
-    }
+    // FIX: Removed the duplicate ledger entry creation here. 
+    // The calling widget (_deletePlant in seller_my_plants.dart) now handles the ledger entry exclusively 
+    // to ensure it happens before the plant record is deleted.
 
     await _delete(table: 'plants', filterKey: 'id', filterValue: plantId);
   }

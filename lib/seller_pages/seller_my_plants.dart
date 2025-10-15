@@ -24,6 +24,7 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
   final int _maxFeatured = 5;
   final TextEditingController _searchController = TextEditingController();
   String _sortOrder = 'newest';
+  bool _isDeleting = false; // ADDED: State to manage deletion in progress
 
   @override
   void initState() {
@@ -204,11 +205,14 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
     
     // FIX: Add mounted check after the dialog is dismissed.
     if (!mounted || confirmed != true) return;
+    
+    // ADDED: Set deleting state
+    setState(() => _isDeleting = true); 
 
     try {
       final userId = context.read<AuthProvider>().user?.id;
 
-      // 1. Create Ledger Entry for DELETE action
+      // 1. Create Ledger Entry for DELETE action (ENSURING it's done before the plant record is gone)
       if (userId != null) {
         await SupabaseDatabaseService.createDeletedPlantLedgerEntry(
           plantId: plantId,
@@ -218,7 +222,7 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
         );
       }
 
-      // 2. Delete the plant record
+      // 2. Delete the plant record (now safe from duplicate ledger call)
       await SupabaseDatabaseService.deletePlant(plantId, plant);
       
       // 3. Refresh the plant list
@@ -241,6 +245,9 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
           ),
         );
       }
+    } finally {
+      // ADDED: Reset deleting state
+      if (mounted) setState(() => _isDeleting = false);
     }
   }
 
@@ -432,6 +439,9 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
                                 trailing: PopupMenuButton<String>(
                                   color: Colors.white,
                                   onSelected: (value) {
+                                    // ADDED: Prevent re-entry if a delete operation is in progress
+                                    if (_isDeleting) return;
+
                                     if (value == 'toggle') {
                                       _togglePlantAvailability(
                                           plantId, isAvailable);

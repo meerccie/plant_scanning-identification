@@ -223,7 +223,8 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
       }
 
       // 2. Delete the plant record (now safe from duplicate ledger call)
-      await SupabaseDatabaseService.deletePlant(plantId, plant);
+      // FIXED: Remove the extra parameter
+      await SupabaseDatabaseService.deletePlant(plantId);
       
       // 3. Refresh the plant list
       await _loadPlants();
@@ -295,7 +296,8 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
                   child: Material(
                     elevation: 4.0,
                     borderRadius: BorderRadius.circular(12.0),
-                    shadowColor: Colors.black.withOpacity(0.1),
+                    // FIXED: Replace deprecated withOpacity
+                    shadowColor: Colors.black.withAlpha(25), // ~10% opacity
                     child: TextField(
                       controller: _searchController,
                       decoration: InputDecoration(
@@ -509,7 +511,8 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        // FIXED: Replace deprecated withOpacity
+        color: Color.fromRGBO(color.red, color.green, color.blue, 0.1),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(

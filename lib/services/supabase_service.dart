@@ -2,7 +2,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../config/env_config.dart'; // ADDED: Import for EnvConfig
+import '../config/env_config.dart';
 
 class SupabaseService {
   static bool _isInitialized = false;
@@ -17,19 +17,15 @@ class SupabaseService {
   }
 
   static Future<void> initialize() async {
-    if (_isInitialized) {
-      debugPrint('Supabase already initialized');
-      return;
-    }
+    if (_isInitialized) return;
 
     try {
-      debugPrint('Starting Supabase initialization...');
       await EnvConfig.load();
       final url = EnvConfig.supabaseUrl;
       final anonKey = EnvConfig.supabaseAnonKey;
 
       if (url.isEmpty || anonKey.isEmpty) {
-        throw Exception('Supabase credentials are not configured in my.env');
+        throw Exception('Supabase credentials are not configured');
       }
 
       await Supabase.initialize(
@@ -42,10 +38,8 @@ class SupabaseService {
       );
 
       _isInitialized = true;
-      debugPrint('✅ Supabase initialized successfully');
     } catch (e) {
-      debugPrint('❌ Supabase initialization failed: $e');
-      _isInitialized = false;
+      debugPrint('Supabase initialization failed: $e');
       rethrow;
     }
   }
@@ -57,7 +51,6 @@ class SupabaseService {
   }
 
   static User? get currentUser {
-    if (!_isInitialized) return null;
-    return client.auth.currentUser;
+    return _isInitialized ? client.auth.currentUser : null;
   }
 }

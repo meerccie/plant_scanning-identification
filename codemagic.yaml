@@ -14,7 +14,7 @@ workflows:
         - api_keys                
         - supabase_credentials    
       android_signing:
-        - your_keystore_reference_name # Replace with the reference name from Codemagic UI
+        - meerc # Replace with the reference name from Codemagic UI
 
     scripts:
       - name: 🔐 Create .env file for build

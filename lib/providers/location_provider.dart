@@ -1,9 +1,12 @@
 // lib/providers/location_provider.dart
-import 'dart:async'; // Added to fix TimeoutException error
-import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:flutter/foundation.dart'; // FIX: Added for debugPrint
+import 'package:flutter/material.dart';      // FIX: Corrected the import path
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:flutter/services.dart';
 
-class LocationProvider extends ChangeNotifier {
+class LocationProvider with ChangeNotifier {
   Position? _currentPosition;
   bool _isLoading = false;
   String? _error;
@@ -14,14 +17,46 @@ class LocationProvider extends ChangeNotifier {
   String? get error => _error;
   LocationPermission get permissionStatus => _permissionStatus;
 
-  /// Enhanced method to get current location with better permission handling
+  Future<String?> getAddressFromCoordinates(double lat, double long) async {
+    try {
+      // FIX: Removed the non-existent 'localeIdentifier' parameter.
+      List<Placemark> placemarks = await placemarkFromCoordinates(lat, long);
+
+      if (placemarks.isNotEmpty) {
+        final place = placemarks.first;
+        final addressParts = [
+          place.name,
+          place.street,
+          place.subLocality,
+          place.locality,
+          place.administrativeArea,
+          place.country,
+        ].where((part) => part != null && part.isNotEmpty).toList();
+
+        if (addressParts.isEmpty) {
+          return 'No address details found for this location.';
+        }
+        
+        final uniqueParts = addressParts.toSet().toList();
+        return uniqueParts.join(', ');
+      } else {
+        return 'No address found for these coordinates.';
+      }
+    } on PlatformException catch (e) {
+      debugPrint('Geocoding PlatformException: ${e.message}');
+      return 'Address lookup service is currently unavailable.';
+    } catch (e) {
+      debugPrint('Error getting address: $e');
+      return 'Could not determine address due to an error.';
+    }
+  }
+
   Future<bool> getCurrentLocation({BuildContext? context}) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      // Step 1: Check if location services are enabled
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         _error = 'Please enable location services to find nearby stores.';
@@ -33,10 +68,8 @@ class LocationProvider extends ChangeNotifier {
         return false;
       }
 
-      // Step 2: Check current permission status
       _permissionStatus = await Geolocator.checkPermission();
       
-      // Step 3: Handle permission states
       if (_permissionStatus == LocationPermission.denied) {
         _permissionStatus = await Geolocator.requestPermission();
         if (_permissionStatus == LocationPermission.denied) {
@@ -57,15 +90,13 @@ class LocationProvider extends ChangeNotifier {
         return false;
       }
 
-      // --- FIX ---
-      // Replaced deprecated 'desiredAccuracy' and 'timeLimit'
-      // with the new LocationSettings approach for better compatibility.
       _currentPosition = await Geolocator.getCurrentPosition(
-        forceAndroidLocationManager: true, // Recommended for higher accuracy on Android
+        desiredAccuracy: LocationAccuracy.best,
+        forceAndroidLocationManager: true, 
         timeLimit: const Duration(seconds: 15),
       );
       
-      _error = null; // Clear previous errors
+      _error = null;
       _isLoading = false;
       notifyListeners();
       debugPrint('Location obtained: ${_currentPosition?.latitude}, ${_currentPosition?.longitude}');
@@ -86,7 +117,6 @@ class LocationProvider extends ChangeNotifier {
     }
   }
 
-  /// Show dialog when location services are disabled
   Future<void> _showLocationServiceDialog(BuildContext context) async {
     await showDialog(
       context: context,
@@ -114,7 +144,6 @@ class LocationProvider extends ChangeNotifier {
     );
   }
 
-  /// Show dialog when permissions are permanently denied
   Future<void> _showPermanentlyDeniedDialog(BuildContext context) async {
     await showDialog(
       context: context,
@@ -142,10 +171,8 @@ class LocationProvider extends ChangeNotifier {
     );
   }
 
-  /// Method to handle permission request with better UX
   Future<bool> requestLocationPermission({BuildContext? context}) async {
     try {
-      // Check if services are enabled first
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if (context != null && context.mounted) {
@@ -154,7 +181,6 @@ class LocationProvider extends ChangeNotifier {
         return false;
       }
 
-      // Check current permission
       LocationPermission permission = await Geolocator.checkPermission();
       
       if (permission == LocationPermission.denied) {
@@ -179,7 +205,6 @@ class LocationProvider extends ChangeNotifier {
     }
   }
 
-  /// Check if we have location permission without requesting
   Future<bool> hasLocationPermission() async {
     try {
       LocationPermission permission = await Geolocator.checkPermission();
@@ -192,7 +217,6 @@ class LocationProvider extends ChangeNotifier {
     }
   }
 
-  /// Get location with permission check (for use in scanning)
   Future<bool> getCurrentLocationForScanning({BuildContext? context}) async {
     return await getCurrentLocation(context: context);
   }

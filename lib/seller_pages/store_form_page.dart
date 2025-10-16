@@ -33,8 +33,6 @@ class _StoreFormPageState extends State<StoreFormPage> {
   TimeOfDay? _openingTime;
   TimeOfDay? _closingTime;
 
-  // REFACTORED: Image state is now managed by ImageAndLocationInputs widget.
-  // These lists will be updated by the child widget's callback.
   List<File> _newImagesToUpload = [];
   List<String> _existingUrlsToKeep = [];
 
@@ -54,7 +52,6 @@ class _StoreFormPageState extends State<StoreFormPage> {
       _addressController.text = store['address'] ?? '';
       _phoneNumberController.text = store['phone_number'] ?? '';
 
-      // Initialize the list of URLs to keep.
       if (store['image_urls'] is List) {
         _existingUrlsToKeep = List<String>.from(store['image_urls']);
       }
@@ -74,9 +71,6 @@ class _StoreFormPageState extends State<StoreFormPage> {
       }
     }
   }
-
-  // REMOVED: All image handling logic (_pickImage, _showCameraPermissionRedirectDialog, etc.)
-  // has been moved to the ImageAndLocationInputs widget.
 
   Future<void> _showLocationPermissionRedirectDialog() async {
     if (!mounted) return;
@@ -144,6 +138,7 @@ class _StoreFormPageState extends State<StoreFormPage> {
     }
   }
 
+  // --- MODIFIED: Removed auto-fill logic ---
   Future<void> _fetchAndSetLocation() async {
     final permissionProvider = context.read<PermissionProvider>();
     await permissionProvider.checkPermissions();
@@ -231,7 +226,6 @@ class _StoreFormPageState extends State<StoreFormPage> {
       final userId = authProvider.user?.id;
       if (userId == null) throw Exception('User not authenticated');
 
-      // REFACTORED: Use the state variables updated by the child widget.
       List<String> finalImageUrls = List.from(_existingUrlsToKeep);
       for (final imageFile in _newImagesToUpload) {
         final imageUrl = await SupabaseStorageService.uploadImage(
@@ -252,7 +246,7 @@ class _StoreFormPageState extends State<StoreFormPage> {
         'address': _addressController.text.trim(),
         'latitude': _currentLatitude,
         'longitude': _currentLongitude,
-        'image_urls': finalImageUrls, // Use the final combined list
+        'image_urls': finalImageUrls,
         'user_id': userId,
         'phone_number': _phoneNumberController.text.trim(),
         'opening_time': _formatTimeOfDay(_openingTime),
@@ -311,7 +305,6 @@ class _StoreFormPageState extends State<StoreFormPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // REFACTORED: ImageAndLocationInputs now manages its own image state.
               ImageAndLocationInputs(
                 initialImageUrls: _existingUrlsToKeep,
                 onImagesChanged: (newImages, existingUrls) {

@@ -386,4 +386,3 @@ class _StoreFormPageState extends State<StoreFormPage> {
     );
   }
 }
-

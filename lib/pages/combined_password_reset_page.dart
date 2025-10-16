@@ -22,7 +22,7 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
-  bool _hasNavigatedAway = false; // ADD THIS FLAG
+  bool _hasNavigatedAway = false;
 
   @override
   void dispose() {
@@ -41,7 +41,6 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
     if (value.length > 72) {
       return 'Password must be less than 72 characters';
     }
-    // Optional: Add more password strength requirements
     if (!RegExp(r'[A-Za-z]').hasMatch(value)) {
       return 'Password must contain at least one letter';
     }
@@ -67,7 +66,6 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
       final success = await SupabaseAuthService.updatePassword(_passwordController.text);
       
       if (success && mounted && !_hasNavigatedAway) {
-        // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Password reset successfully! Please log in with your new password.'),
@@ -76,12 +74,10 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
           ),
         );
 
-        // Wait a moment for the user to see the message
         await Future.delayed(const Duration(milliseconds: 500));
 
         if (mounted && !_hasNavigatedAway) {
-          _hasNavigatedAway = true; // Set flag to prevent duplicate navigation
-          // Navigate to login and remove all previous routes
+          _hasNavigatedAway = true;
           Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
         }
       }
@@ -89,7 +85,6 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
       if (mounted && !_hasNavigatedAway) {
         String errorMessage = 'Failed to reset password. Please try again.';
         
-        // Handle specific error cases
         if (e.toString().contains('session')) {
           errorMessage = 'Your reset link has expired. Please request a new password reset.';
         } else if (e.toString().contains('password')) {
@@ -114,9 +109,11 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // --- MODIFIED: Set the background color ---
+      backgroundColor: AppColors.backgroundColor,
       appBar: AppBar(
         title: const Text('Reset Password'),
-        automaticallyImplyLeading: false, // Remove back button to prevent navigation issues
+        automaticallyImplyLeading: false,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -128,7 +125,6 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
               children: [
                 const SizedBox(height: 20),
                 
-                // Icon
                 const Icon(
                   Icons.lock_reset,
                   size: 80,
@@ -137,7 +133,6 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
                 
                 const SizedBox(height: 24),
                 
-                // Title
                 const Text(
                   'Create New Password',
                   style: TextStyle(
@@ -149,7 +144,7 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
                 
                 const SizedBox(height: 12),
                 
-                // Email display
+                // --- MODIFIED: Email display section ---
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -175,7 +170,6 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
                 
                 const SizedBox(height: 24),
                 
-                // Instructions
                 const Text(
                   'Please enter your new password below. Make sure it\'s strong and secure.',
                   style: TextStyle(
@@ -187,7 +181,6 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
                 
                 const SizedBox(height: 32),
                 
-                // New Password Field
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -209,7 +202,6 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
                     ),
                   ),
                   onChanged: (_) {
-                    // Revalidate confirm password field when password changes
                     if (_confirmPasswordController.text.isNotEmpty) {
                       _formKey.currentState?.validate();
                     }
@@ -218,7 +210,6 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
                 
                 const SizedBox(height: 16),
                 
-                // Confirm Password Field
                 TextFormField(
                   controller: _confirmPasswordController,
                   obscureText: _obscureConfirmPassword,
@@ -243,7 +234,6 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
                 
                 const SizedBox(height: 24),
                 
-                // Password Requirements
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -271,7 +261,6 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
                 
                 const SizedBox(height: 32),
                 
-                // Reset Button
                 SizedBox(
                   height: 50,
                   child: ElevatedButton(
@@ -305,7 +294,6 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
                 
                 const SizedBox(height: 16),
                 
-                // Cancel/Back to Login
                 TextButton(
                   onPressed: _isLoading
                       ? null

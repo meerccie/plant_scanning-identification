@@ -31,6 +31,9 @@ class _StoreFeaturedPlantsState extends State<StoreFeaturedPlants> {
   int _currentPage = 0;
   Timer? _carouselTimer;
 
+  // --- MODIFIED: Set a max number of dots to display ---
+  final int _maxDots = 3;
+
   @override
   void initState() {
     super.initState();
@@ -44,13 +47,10 @@ class _StoreFeaturedPlantsState extends State<StoreFeaturedPlants> {
   @override
   void didUpdateWidget(StoreFeaturedPlants oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // If the number of featured plants changes, re-evaluate the carousel timer.
     if (oldWidget.featuredPlants.length != widget.featuredPlants.length) {
       if (widget.featuredPlants.length > 1) {
-        // If we now have enough plants for a carousel, start it.
         _startCarouselTimer();
       } else {
-        // Otherwise, make sure the timer is stopped.
         _carouselTimer?.cancel();
       }
     }
@@ -64,7 +64,7 @@ class _StoreFeaturedPlantsState extends State<StoreFeaturedPlants> {
   }
 
   void _startCarouselTimer() {
-    _carouselTimer?.cancel(); // Cancel any existing timer
+    _carouselTimer?.cancel();
     _carouselTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
       if (_pageController.hasClients) {
         _pageController.nextPage(
@@ -92,6 +92,8 @@ class _StoreFeaturedPlantsState extends State<StoreFeaturedPlants> {
     final hasMoreListings = nonFeaturedPlants.isNotEmpty;
     final featuredCount = widget.featuredPlants.length;
     final currentUserId = SupabaseService.currentUser?.id;
+
+    final int dotCount = featuredCount > _maxDots ? _maxDots : featuredCount;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16.0),
@@ -204,15 +206,17 @@ class _StoreFeaturedPlantsState extends State<StoreFeaturedPlants> {
           if (featuredCount > 1)
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(featuredCount, (index) {
+              children: List.generate(dotCount, (index) {
+                final bool isSelected =
+                    (_currentPage % dotCount) == index;
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   margin:
                       const EdgeInsets.symmetric(vertical: 10.0, horizontal: 2.0),
                   height: 8,
-                  width: _currentPage == index ? 24 : 8,
+                  width: isSelected ? 24 : 8,
                   decoration: BoxDecoration(
-                    color: _currentPage == index
+                    color: isSelected
                         ? AppColors.secondaryColor
                         : AppColors.secondaryColor.withOpacity(0.5),
                     borderRadius: BorderRadius.circular(12),
@@ -225,4 +229,3 @@ class _StoreFeaturedPlantsState extends State<StoreFeaturedPlants> {
     );
   }
 }
-

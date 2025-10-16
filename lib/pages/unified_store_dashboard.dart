@@ -65,15 +65,18 @@ class _UnifiedStoreDashboardState extends State<UnifiedStoreDashboard> {
       if (mounted) {
         setState(() {
           if (sellerData['store_id'] != null) {
+            // FIX: Ensure all store fields are mapped correctly for editing
             _store = {
               'id': sellerData['store_id'].toString(),
               'name': sellerData['store_name'],
               'description': sellerData['store_description'],
-              'image_urls': sellerData['image_urls'] ?? [], // Updated
+              'image_urls': sellerData['image_urls'] ?? [],
               'address': sellerData['address'],
               'phone_number': sellerData['phone_number'],
               'opening_time': sellerData['opening_time'],
               'closing_time': sellerData['closing_time'],
+              'latitude': sellerData['latitude'],
+              'longitude': sellerData['longitude'],
             };
             _loadStorePlants();
           } else if (_isOwner) {

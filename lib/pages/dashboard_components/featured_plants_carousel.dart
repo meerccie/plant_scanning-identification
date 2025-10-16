@@ -6,7 +6,7 @@ import '../../components/plant_card.dart';
 import '../../providers/plant_provider.dart';
 import '../../services/supabase_service.dart';
 import '../plant_details_page.dart';
-import 'no_featured_plants_placeholder.dart'; // ADDED
+import 'no_featured_plants_placeholder.dart';
 
 class FeaturedPlantsCarousel extends StatefulWidget {
   final List<Map<String, dynamic>> featuredPlants;
@@ -26,6 +26,9 @@ class _FeaturedPlantsCarouselState extends State<FeaturedPlantsCarousel> {
   late PageController _pageController;
   int _currentPage = 0;
   Timer? _carouselTimer;
+
+  // --- MODIFIED: Set a max number of dots to display ---
+  final int _maxDots = 3;
 
   @override
   void initState() {
@@ -71,8 +74,6 @@ class _FeaturedPlantsCarouselState extends State<FeaturedPlantsCarousel> {
         child: Center(child: CircularProgressIndicator()),
       );
     }
-    // MODIFIED: This widget now always returns a Column with the title.
-    // The content inside is conditional.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -87,7 +88,6 @@ class _FeaturedPlantsCarouselState extends State<FeaturedPlantsCarousel> {
           ),
         ),
         const SizedBox(height: 16),
-        // ADDED: Conditional logic to show either the carousel or the placeholder.
         if (widget.featuredPlants.isEmpty)
           const NoFeaturedPlantsPlaceholder()
         else
@@ -96,9 +96,11 @@ class _FeaturedPlantsCarouselState extends State<FeaturedPlantsCarousel> {
     );
   }
 
-  // ADDED: Extracted the carousel and dots into a separate build method for clarity.
   Widget _buildCarousel() {
     final String? currentUserId = SupabaseService.currentUser?.id;
+    final int dotCount = widget.featuredPlants.length > _maxDots
+        ? _maxDots
+        : widget.featuredPlants.length;
 
     return Column(
       children: [
@@ -155,11 +157,12 @@ class _FeaturedPlantsCarouselState extends State<FeaturedPlantsCarousel> {
             },
           ),
         ),
-        if (widget.featuredPlants.length >
-            1) // Only show dots if there's more than one plant
+        if (widget.featuredPlants.length > 1)
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(widget.featuredPlants.length, (index) {
+            children: List.generate(dotCount, (index) {
+              final bool isSelected =
+                  (_currentPage % dotCount) == index;
               return Container(
                 width: 8.0,
                 height: 8.0,
@@ -168,7 +171,7 @@ class _FeaturedPlantsCarouselState extends State<FeaturedPlantsCarousel> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: AppColors.primaryColor.withAlpha(
-                      (255 * (_currentPage == index ? 0.9 : 0.4)).round()),
+                      (255 * (isSelected ? 0.9 : 0.4)).round()),
                 ),
               );
             }),

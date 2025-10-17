@@ -20,7 +20,7 @@ class RoleDropdown extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 15),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: AppColors.backgroundColor,
+        color: AppColors.accentColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: const [
           BoxShadow(

@@ -1,4 +1,3 @@
-// lib/pages/scan_result_details_page.dart
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -165,7 +164,6 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
     );
   }
 
-  // --- MODIFIED: The list builder now uses a tappable InkWell ---
   Widget _buildStoreList(List<Map<String, dynamic>> stores, {bool showDistanceWarning = false}) {
     return ListView.builder(
       itemCount: stores.length,
@@ -275,7 +273,7 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
                                           borderRadius: BorderRadius.circular(4),
                                         ),
                                         child: Text(
-                                          plant['name'] ?? 'Plant',
+                                          '${plant['name'] ?? 'Plant'} (Qty: ${plant['quantity'] ?? 0})',
                                           style: const TextStyle(fontSize: 10),
                                         ),
                                       ),
@@ -332,7 +330,6 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
                             onPressed: () => _launchMaps(storeLat, storeLng),
                             tooltip: 'Get Directions',
                           ),
-                          // Replaced visibility icon with a chevron to indicate tappability
                           if (sellerId != null)
                             const Padding(
                               padding: EdgeInsets.only(top: 8.0),

@@ -10,6 +10,15 @@ class TimePickerField extends StatelessWidget {
   const TimePickerField(
       {super.key, required this.label, required this.time, required this.onTap});
 
+  // --- ADDED: Helper to format TimeOfDay into a 12-hour AM/PM string ---
+  String _formatTime(BuildContext context, TimeOfDay? time) {
+    if (time == null) {
+      return 'Select Time';
+    }
+    // Use the built-in format method which respects device settings (usually AM/PM)
+    return time.format(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -32,7 +41,8 @@ class TimePickerField extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  time?.format(context) ?? 'Select Time',
+                  // --- MODIFIED: Use the new formatting logic ---
+                  _formatTime(context, time),
                   style: TextStyle(
                     color: time == null
                         ? AppColors.textSecondary

@@ -1,9 +1,9 @@
 // lib/pages/scan_result_details_page.dart
-import 'package:flutter/foundation.dart'; // Add this import
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../components/app_colors.dart'; // Import app colors
 import '../services/supabase_database_service.dart';
 import '../providers/location_provider.dart';
 import 'unified_store_dashboard.dart';
@@ -52,7 +52,7 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
         plantName: widget.plantName,
         latitude: currentPosition.latitude,
         longitude: currentPosition.longitude,
-        radiusInKm: 100.0, // Increased radius for better results
+        radiusInKm: 100.0,
       );
 
       debugPrint('🎯 Final result: ${stores.length} stores found');
@@ -71,14 +71,14 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
   List<Map<String, dynamic>> _getNearbyStores(List<Map<String, dynamic>> stores) {
     return stores.where((store) {
       final distance = store['distance_km'] as double? ?? double.maxFinite;
-      return distance <= 50.0; // Within 50km
+      return distance <= 50.0;
     }).toList();
   }
 
   List<Map<String, dynamic>> _getFarStores(List<Map<String, dynamic>> stores) {
     return stores.where((store) {
       final distance = store['distance_km'] as double? ?? double.maxFinite;
-      return distance > 50.0; // Beyond 50km
+      return distance > 50.0;
     }).toList();
   }
 
@@ -86,15 +86,11 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
     final colors = {
       'exact_match': Colors.green,
       'similar_match': Colors.blue,
-      'partial_match': Colors.orange,
-      'fuzzy_match': Colors.grey,
     };
     
     final labels = {
       'exact_match': 'Exact Match',
       'similar_match': 'Similar Plant',
-      'partial_match': 'Related',
-      'fuzzy_match': 'Maybe Related',
     };
     
     final color = colors[matchType] ?? Colors.grey;
@@ -103,7 +99,7 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Color.alphaBlend(color.withAlpha(25), Colors.transparent), // Fixed opacity issue
+        color: color.withAlpha(25),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color),
       ),
@@ -179,174 +175,176 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
         final storeLng = storeData['longitude'];
         final isActive = storeData['is_active'] ?? true;
         final matchingPlants = store['matching_plants'] ?? [];
-        final searchStrategy = store['search_strategy'] ?? 'fuzzy_match';
+        final searchStrategy = store['search_strategy'] ?? 'similar_match';
         double? distance = store['distance_km'] as double?;
+        final sellerId = storeData['user_id'];
 
         return Card(
+          // --- MODIFIED: Set the card color ---
+          color: AppColors.accentColor,
+          clipBehavior: Clip.antiAlias,
           margin: const EdgeInsets.all(8.0),
           elevation: 2,
-          child: Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              children: [
-                // Store info row
-                Row(
-                  children: [
-                    // Store icon with plant count
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: Colors.green[50],
-                        borderRadius: BorderRadius.circular(8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: InkWell(
+            onTap: sellerId != null
+                ? () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => UnifiedStoreDashboard(
+                          sellerId: sellerId,
+                          isViewOnly: true,
+                        ),
                       ),
-                      child: Column(
+                    );
+                  }
+                : null,
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.green[50],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.store, color: Colors.green, size: 24),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${matchingPlants.length}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    storeData['name'] ?? 'Unknown Store',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ),
+                                _buildMatchTypeBadge(searchStrategy),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            if (storeData['address'] != null)
+                              Text(
+                                storeData['address']!,
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 14,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            const SizedBox(height: 4),
+                            if (matchingPlants.isNotEmpty)
+                              SizedBox(
+                                height: 20,
+                                child: ListView(
+                                  scrollDirection: Axis.horizontal,
+                                  children: [
+                                    for (final plant in matchingPlants.take(3))
+                                      Container(
+                                        margin: const EdgeInsets.only(right: 6),
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green[100],
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          plant['name'] ?? 'Plant',
+                                          style: const TextStyle(fontSize: 10),
+                                        ),
+                                      ),
+                                    if (matchingPlants.length > 3)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        child: Text(
+                                          '+${matchingPlants.length - 3} more',
+                                          style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(Icons.location_on, size: 14, color: Colors.grey),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${(distance ?? 0).toStringAsFixed(1)} km',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                const Spacer(),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: isActive 
+                                      ? Colors.green.shade100 
+                                      : Colors.red.shade100,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    isActive ? 'Open' : 'Closed',
+                                    style: TextStyle(
+                                      color: isActive 
+                                        ? Colors.green.shade700 
+                                        : Colors.red.shade700,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.store, color: Colors.green, size: 24),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${matchingPlants.length}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    
-                    // Store details
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  storeData['name'] ?? 'Unknown Store',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ),
-                              _buildMatchTypeBadge(searchStrategy),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          if (storeData['address'] != null)
-                            Text(
-                              storeData['address']!,
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 14,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          const SizedBox(height: 4),
-                          // Show matching plants
-                          if (matchingPlants.isNotEmpty)
-                            SizedBox(
-                              height: 20,
-                              child: ListView(
-                                scrollDirection: Axis.horizontal,
-                                children: [
-                                  for (final plant in matchingPlants.take(3))
-                                    Container(
-                                      margin: const EdgeInsets.only(right: 6),
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green[100],
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        plant['name'] ?? 'Plant',
-                                        style: const TextStyle(fontSize: 10),
-                                      ),
-                                    ),
-                                  if (matchingPlants.length > 3)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      child: Text(
-                                        '+${matchingPlants.length - 3} more',
-                                        style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              const Icon(Icons.location_on, size: 14, color: Colors.grey),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${(distance ?? 0).toStringAsFixed(1)} km',
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                              const Spacer(),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: isActive 
-                                    ? Colors.green.shade100 
-                                    : Colors.red.shade100,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  isActive ? 'Open' : 'Closed',
-                                  style: TextStyle(
-                                    color: isActive 
-                                      ? Colors.green.shade700 
-                                      : Colors.red.shade700,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Actions
-                    Column(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.directions, color: Colors.blue),
-                          onPressed: () => _launchMaps(storeLat, storeLng),
-                          tooltip: 'Get Directions',
-                        ),
-                        if (storeData['user_id'] != null)
                           IconButton(
-                            icon: const Icon(Icons.visibility, color: Colors.green),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => UnifiedStoreDashboard(
-                                    sellerId: storeData['user_id'],
-                                    isViewOnly: true,
-                                  ),
-                                ),
-                              );
-                            },
-                            tooltip: 'View Store',
+                            icon: const Icon(Icons.directions, color: Colors.blue),
+                            onPressed: () => _launchMaps(storeLat, storeLng),
+                            tooltip: 'Get Directions',
                           ),
-                      ],
-                    ),
-                  ],
-                ),
-                
-                // Distance warning for far stores
-                if (showDistanceWarning && distance != null && distance > 50)
-                  _buildDistanceWarning(distance),
-              ],
+                          if (sellerId != null)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 8.0),
+                              child: Icon(Icons.chevron_right, color: Colors.grey),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  if (showDistanceWarning && distance != null && distance > 50)
+                    _buildDistanceWarning(distance),
+                ],
+              ),
             ),
           ),
         );
@@ -370,7 +368,7 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
             padding: const EdgeInsets.symmetric(horizontal: 40.0),
             child: Text(
               'We couldn\'t find any stores selling "${widget.plantName}" near your location. '
-              'Try searching with a more general term or check back later.',
+              'Try scanning again or check back later.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey[600]),
             ),
@@ -378,8 +376,8 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
           const SizedBox(height: 20),
           ElevatedButton.icon(
             onPressed: _retrySearch,
-            icon: const Icon(Icons.search),
-            label: const Text('Search Again'),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Try Again'),
           ),
         ],
       ),
@@ -392,8 +390,7 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri);
       } else {
-        // Fallback to web maps
-        final webUri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$long');
+        final webUri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$long');
         if (await canLaunchUrl(webUri)) {
           await launchUrl(webUri);
         }
@@ -410,6 +407,7 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.backgroundColor,
       appBar: AppBar(
         title: Text('Stores with ${widget.plantName}'),
         actions: [
@@ -478,13 +476,11 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
             return _buildNoStoresFound();
           }
 
-          // Separate stores by distance
           final nearbyStores = _getNearbyStores(stores);
           final farStores = _getFarStores(stores);
 
           return Column(
             children: [
-              // Nearby stores section
               if (nearbyStores.isNotEmpty) ...[
                 _buildStoreSectionHeader('📍 Nearby Stores (within 50km)', nearbyStores.length),
                 Expanded(
@@ -493,7 +489,6 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
                 ),
               ],
               
-              // Far stores section
               if (farStores.isNotEmpty) ...[
                 _buildStoreSectionHeader('🚗 Stores Further Away', farStores.length),
                 Expanded(

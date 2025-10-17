@@ -13,7 +13,7 @@ import '../providers/location_provider.dart';
 import '../services/plant_scanner_service.dart';
 import 'scan_result_details_page.dart';
 import '../components/app_colors.dart';
-import '../widgets/scanning_animation_widget.dart'; // Import the new widget
+import '../widgets/scanning_animation_widget.dart';
 
 class ScanPage extends StatefulWidget {
   const ScanPage({super.key});
@@ -304,12 +304,11 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   Widget _buildCameraView() {
     final cameraAspectRatio = _controller!.value.previewSize != null 
         ? _controller!.value.previewSize!.width / _controller!.value.previewSize!.height
-        : 3 / 4; // Fallback aspect ratio
+        : 3 / 4;
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        // FIXED: Camera preview with proper aspect ratio
         if (_capturedImageFile == null)
           AspectRatio(
             aspectRatio: cameraAspectRatio,
@@ -326,7 +325,6 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
             ),
           ),
         
-        // Scanning frame overlay
         if (_capturedImageFile == null)
           Center(
             child: Container(
@@ -372,7 +370,6 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
             ),
           ),
         
-        // Processing overlay using the new reusable widget
         if (_isProcessing || _isCapturing)
           Container(
             color: Colors.black87,
@@ -510,231 +507,237 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
     }
   }
 
-void _showResultsDialog(PlantIdentification identification) {
-  if (identification.results.isEmpty) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not identify the plant.')),
-      );
+  void _showResultsDialog(PlantIdentification identification) {
+    if (identification.results.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not identify the plant.')),
+        );
+      }
+      return;
     }
-    return;
-  }
 
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) {
-      return Dialog(
-        insetPadding: const EdgeInsets.all(20),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.9,
-            minWidth: 350,
-            maxHeight: MediaQuery.of(context).size.height * 0.8,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Plant Identification Results",
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return Dialog(
+          // --- MODIFIED: Set the background color ---
+          backgroundColor: AppColors.backgroundColor,
+          insetPadding: const EdgeInsets.all(20),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.9,
+              minWidth: 350,
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Plant Identification Results",
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  "We found these potential matches:",
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.black54,
+                  const SizedBox(height: 16),
+                  const Text(
+                    "We found these potential matches:",
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.black54,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                Expanded(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: identification.results.length,
-                    itemBuilder: (context, index) {
-                      final result = identification.results[index];
-                      final imageUrl =
-                          result.images.isNotEmpty ? result.images.first.url : null;
+                  const SizedBox(height: 20),
+                  Expanded(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: identification.results.length,
+                      itemBuilder: (context, index) {
+                        final result = identification.results[index];
+                        final imageUrl =
+                            result.images.isNotEmpty ? result.images.first.url : null;
 
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 4,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(12),
-                            onTap: () {
-                              final plantNameToSearch = result
-                                      .species.scientificNameWithoutAuthor.isNotEmpty
-                                  ? result.species.scientificNameWithoutAuthor
-                                  : result.species.displayName;
-                              Navigator.of(context).pop();
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => ScanResultDetailsPage(
-                                      plantName: plantNameToSearch),
-                                ),
-                              );
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Plant Image
-                                  Container(
-                                    width: 80,
-                                    height: 80,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(8),
-                                      color: Colors.grey[100],
-                                    ),
-                                    child: imageUrl != null && imageUrl.isNotEmpty
-                                        ? ClipRRect(
-                                            borderRadius: BorderRadius.circular(8),
-                                            child: CachedNetworkImage(
-                                              imageUrl: imageUrl,
-                                              width: 80,
-                                              height: 80,
-                                              fit: BoxFit.cover,
-                                              placeholder: (context, url) => Container(
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black12,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () async { 
+                                final plantNameToSearch = result
+                                        .species.scientificNameWithoutAuthor.isNotEmpty
+                                    ? result.species.scientificNameWithoutAuthor
+                                    : result.species.displayName;
+                                
+                                Navigator.of(context).pop();
+                                
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ScanResultDetailsPage(
+                                        plantName: plantNameToSearch),
+                                  ),
+                                );
+
+                                if (mounted) {
+                                  _showResultsDialog(identification);
+                                }
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      width: 80,
+                                      height: 80,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(8),
+                                        color: Colors.grey[100],
+                                      ),
+                                      child: imageUrl != null && imageUrl.isNotEmpty
+                                          ? ClipRRect(
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: CachedNetworkImage(
+                                                imageUrl: imageUrl,
                                                 width: 80,
                                                 height: 80,
-                                                child: const Center(
-                                                  child: CircularProgressIndicator(
-                                                    strokeWidth: 2,
+                                                fit: BoxFit.cover,
+                                                placeholder: (context, url) => Container(
+                                                  width: 80,
+                                                  height: 80,
+                                                  child: const Center(
+                                                    child: CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
                                                   ),
                                                 ),
+                                                errorWidget: (context, url, error) => 
+                                                  const Icon(Icons.local_florist, 
+                                                    size: 40, 
+                                                    color: Colors.grey),
                                               ),
-                                              errorWidget: (context, url, error) => 
-                                                const Icon(Icons.local_florist, 
-                                                  size: 40, 
-                                                  color: Colors.grey),
-                                            ),
-                                          )
-                                        : const Center(
-                                            child: Icon(Icons.local_florist, 
-                                              size: 40, 
-                                              color: Colors.grey),
+                                            )
+                                          : const Center(
+                                              child: Icon(Icons.local_florist, 
+                                                size: 40, 
+                                                color: Colors.grey),
                                           ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  // Plant Details
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          result.species.displayName,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 16,
-                                            color: Colors.black87,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        if (result.species.commonNames.isNotEmpty)
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
                                           Text(
-                                            result.species.commonNames.join(', '),
+                                            result.species.displayName,
                                             style: const TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.black54,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 16,
+                                              color: Colors.black87,
                                             ),
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
                                           ),
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 12,
-                                                vertical: 4,
+                                          const SizedBox(height: 4),
+                                          if (result.species.commonNames.isNotEmpty)
+                                            Text(
+                                              result.species.commonNames.join(', '),
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.black54,
                                               ),
-                                              decoration: BoxDecoration(
-                                                color: _getConfidenceColor(result.score),
-                                                borderRadius: BorderRadius.circular(12),
-                                              ),
-                                              child: Text(
-                                                '${(result.score * 100).toStringAsFixed(1)}% match',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w500,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 12,
+                                                  vertical: 4,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: _getConfidenceColor(result.score),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                child: Text(
+                                                  '${(result.score * 100).toStringAsFixed(1)}% match',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                            const Spacer(),
-                                            const Icon(
-                                              Icons.arrow_forward_ios,
-                                              size: 16,
-                                              color: Colors.grey,
-                                            ),
-                                          ],
-                                        ),
-                                      ],
+                                              const Spacer(),
+                                              const Icon(
+                                                Icons.arrow_forward_ios,
+                                                size: 16,
+                                                color: Colors.grey,
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.primaryColor,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
+                  const SizedBox(height: 20),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.primaryColor,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                      ),
+                      child: const Text(
+                        'Close',
+                        style: TextStyle(fontSize: 16),
                       ),
                     ),
-                    child: const Text(
-                      'Close',
-                      style: TextStyle(fontSize: 16),
-                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
 
-Color _getConfidenceColor(double score) {
-  if (score > 0.7) return Colors.green;
-  if (score > 0.4) return Colors.orange;
-  return Colors.red;
-}
+  Color _getConfidenceColor(double score) {
+    if (score > 0.7) return Colors.green;
+    if (score > 0.4) return Colors.orange;
+    return Colors.red;
+  }
 }

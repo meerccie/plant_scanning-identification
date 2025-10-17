@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../components/app_colors.dart'; // Import app colors
+import '../components/app_colors.dart';
 import '../services/supabase_database_service.dart';
 import '../providers/location_provider.dart';
 import 'unified_store_dashboard.dart';
@@ -165,6 +165,7 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
     );
   }
 
+  // --- MODIFIED: The list builder now uses a tappable InkWell ---
   Widget _buildStoreList(List<Map<String, dynamic>> stores, {bool showDistanceWarning = false}) {
     return ListView.builder(
       itemCount: stores.length,
@@ -180,7 +181,6 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
         final sellerId = storeData['user_id'];
 
         return Card(
-          // --- MODIFIED: Set the card color ---
           color: AppColors.accentColor,
           clipBehavior: Clip.antiAlias,
           margin: const EdgeInsets.all(8.0),
@@ -332,6 +332,7 @@ class _ScanResultDetailsPageState extends State<ScanResultDetailsPage> {
                             onPressed: () => _launchMaps(storeLat, storeLng),
                             tooltip: 'Get Directions',
                           ),
+                          // Replaced visibility icon with a chevron to indicate tappability
                           if (sellerId != null)
                             const Padding(
                               padding: EdgeInsets.only(top: 8.0),

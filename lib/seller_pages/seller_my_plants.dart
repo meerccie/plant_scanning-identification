@@ -114,13 +114,17 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
     }
   }
 
-  Future<void> _showEditQuantityDialog(String plantId, int currentQuantity) async {
-    final quantityController = TextEditingController(text: currentQuantity.toString());
+  Future<void> _showEditQuantityDialog(Map<String, dynamic> plant) async {
+    final plantId = plant['id'].toString();
+    final currentQuantity = plant['quantity'] ?? 0;
+    final quantityController =
+        TextEditingController(text: currentQuantity.toString());
     final formKey = GlobalKey<FormState>();
 
     final newQuantity = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: AppColors.accentColor,
         title: const Text('Edit Stock Quantity'),
         content: Form(
           key: formKey,
@@ -130,14 +134,18 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: const InputDecoration(labelText: 'New Quantity'),
             validator: (val) {
-              if (val == null || val.isEmpty) return 'Quantity cannot be empty';
+              if (val == null || val.isEmpty) {
+                return 'Quantity cannot be empty';
+              }
               if (int.tryParse(val) == null) return 'Invalid number';
               return null;
             },
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
           TextButton(
             onPressed: () {
               if (formKey.currentState!.validate()) {
@@ -152,17 +160,35 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
 
     if (newQuantity != null && newQuantity != currentQuantity && mounted) {
       try {
-        await SupabaseDatabaseService.updatePlant(plantId, {'quantity': newQuantity});
+        await SupabaseDatabaseService.updatePlant(
+            plantId, {'quantity': newQuantity});
+        
+        // ADDED: Log the quantity update
+        final userId = context.read<AuthProvider>().user?.id;
+        if (userId != null) {
+          await SupabaseDatabaseService.createQuantityUpdateLedgerEntry(
+            userId: userId,
+            plantId: plantId,
+            plantName: plant['name'] ?? 'Unnamed Plant',
+            newQuantity: newQuantity,
+            plantImageUrl: plant['image_url'] as String?,
+          );
+        }
+
         await _loadPlants();
-        if(mounted) {
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Quantity updated successfully.'), backgroundColor: AppColors.success),
+            const SnackBar(
+                content: Text('Quantity updated successfully.'),
+                backgroundColor: AppColors.success),
           );
         }
       } catch (e) {
-        if(mounted) {
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to update quantity: $e'), backgroundColor: AppColors.error),
+            SnackBar(
+                content: Text('Failed to update quantity: $e'),
+                backgroundColor: AppColors.error),
           );
         }
       }
@@ -378,15 +404,7 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
                     return sortOptions.entries.map((entry) {
                       return PopupMenuItem<String>(
                         value: entry.key,
-                        child: Text(
-                          entry.value,
-                          style: TextStyle(
-                            fontFamily: Theme.of(context)
-                                .textTheme
-                                .bodyLarge
-                                ?.fontFamily,
-                          ),
-                        ),
+                        child: Text(entry.value),
                       );
                     }).toList();
                   },
@@ -495,7 +513,7 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
                                   onSelected: (value) {
                                     if (_isDeleting) return;
                                     if(value == 'edit_quantity'){
-                                      _showEditQuantityDialog(plantId, quantity);
+                                      _showEditQuantityDialog(plant);
                                     } else if (value == 'toggle') {
                                       _togglePlantAvailability(
                                           plantId, isAvailable);

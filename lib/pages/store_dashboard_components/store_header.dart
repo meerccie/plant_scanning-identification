@@ -130,14 +130,18 @@ class _StoreHeaderState extends State<StoreHeader> {
     final statusText = isOpen ? 'Open' : 'Closed';
     final statusColor = isOpen ? AppColors.success : AppColors.error;
 
+    // --- MODIFIED: This function now formats to 12-hour AM/PM time ---
     String formatDisplayTime(String? timeStr) {
       if (timeStr == null || timeStr.isEmpty) return 'N/A';
       try {
         final parts = timeStr.split(':').map(int.parse).toList();
         final time = TimeOfDay(hour: parts[0], minute: parts[1]);
-        return time.format(context);
+        final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+        final minute = time.minute.toString().padLeft(2, '0');
+        final period = time.period == DayPeriod.am ? 'AM' : 'PM';
+        return '$hour:$minute $period';
       } catch (_) {
-        return timeStr.substring(0, 5);
+        return timeStr; // Fallback to original string if parsing fails
       }
     }
 
@@ -324,4 +328,3 @@ class _StoreHeaderState extends State<StoreHeader> {
     );
   }
 }
-

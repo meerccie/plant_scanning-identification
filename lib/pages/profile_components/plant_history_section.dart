@@ -9,7 +9,6 @@ import 'package:provider/provider.dart';
 class PlantHistorySection extends StatelessWidget {
   const PlantHistorySection({super.key});
 
-  // Helper to determine icon and color based on the action
   Map<String, dynamic> _getActionStyle(String action) {
     switch (action) {
       case 'UPLOADED':
@@ -24,6 +23,7 @@ class PlantHistorySection extends StatelessWidget {
           'color': AppColors.error,
           'message': 'Deleted',
         };
+      // ADDED: New case for quantity updates
       case 'UPDATED':
         return {
           'icon': Icons.edit_outlined,
@@ -39,14 +39,12 @@ class PlantHistorySection extends StatelessWidget {
     }
   }
 
-  // Helper to format timestamp
   String _formatTimestamp(String timestamp) {
     try {
       final dateTime = DateTime.parse(timestamp);
       final now = DateTime.now();
       final difference = now.difference(dateTime);
 
-      // If within last 24 hours, show relative time
       if (difference.inHours < 24) {
         if (difference.inMinutes < 1) {
           return 'Just now';
@@ -57,12 +55,10 @@ class PlantHistorySection extends StatelessWidget {
         }
       }
       
-      // If within last 7 days, show day of week
       if (difference.inDays < 7) {
         return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
       }
 
-      // Otherwise show full date
       return DateFormat('MMM d, y • h:mm a').format(dateTime);
     } catch (e) {
       return 'Unknown time';
@@ -127,14 +123,12 @@ class PlantHistorySection extends StatelessWidget {
         
         final history = snapshot.data ?? [];
         
-        // Remove duplicates based on plant_id and action, keeping the most recent
         final uniqueHistory = <String, Map<String, dynamic>>{};
         for (final entry in history) {
           final key = '${entry['plant_id']}_${entry['action']}';
           if (!uniqueHistory.containsKey(key)) {
             uniqueHistory[key] = entry;
           } else {
-            // Keep the more recent entry
             final existingTimestamp = DateTime.parse(uniqueHistory[key]!['created_at']);
             final currentTimestamp = DateTime.parse(entry['created_at']);
             if (currentTimestamp.isAfter(existingTimestamp)) {
@@ -285,7 +279,6 @@ class PlantHistorySection extends StatelessWidget {
                                       size: 24,
                                     ),
                             ),
-                            // Action badge
                             Positioned(
                               bottom: 0,
                               right: 0,

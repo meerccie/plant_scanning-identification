@@ -6,13 +6,11 @@ import 'supabase_service.dart';
 class SupabaseDatabaseService {
   static SupabaseClient get _client => SupabaseService.client;
 
-  // Generic error handler
   static Never _handlePostgrestError(PostgrestException e, String operation) {
     debugPrint('Postgres error during $operation: ${e.message}');
     throw Exception('Database error during $operation: ${e.message}');
   }
 
-  // Generic select query
   static Future<List<Map<String, dynamic>>> _selectList({
     required String table,
     String select = '*',
@@ -23,21 +21,17 @@ class SupabaseDatabaseService {
   }) async {
     try {
       dynamic query = _client.from(table).select(select);
-
       if (filters != null) {
         filters.forEach((key, value) {
           query = query.eq(key, value);
         });
       }
-
       if (orderBy != null) {
         query = query.order(orderBy, ascending: ascending);
       }
-
       if (limit != null) {
         query = query.limit(limit);
       }
-
       final result = await query;
       return List<Map<String, dynamic>>.from(result);
     } on PostgrestException catch (e) {
@@ -45,7 +39,6 @@ class SupabaseDatabaseService {
     }
   }
 
-  // Generic single row select
   static Future<Map<String, dynamic>?> _selectSingle({
     required String table,
     String select = '*',
@@ -65,7 +58,6 @@ class SupabaseDatabaseService {
     }
   }
 
-  // Generic insert
   static Future<Map<String, dynamic>> _insert({
     required String table,
     required Map<String, dynamic> data,
@@ -78,7 +70,6 @@ class SupabaseDatabaseService {
     }
   }
 
-  // Generic update
   static Future<void> _update({
     required String table,
     required Map<String, dynamic> updates,
@@ -92,7 +83,6 @@ class SupabaseDatabaseService {
     }
   }
 
-  // Generic delete
   static Future<void> _delete({
     required String table,
     required String filterKey,
@@ -101,20 +91,17 @@ class SupabaseDatabaseService {
   }) async {
     try {
       dynamic query = _client.from(table).delete().eq(filterKey, filterValue);
-      
       if (additionalFilter != null) {
         additionalFilter.forEach((key, value) {
           query = query.eq(key, value);
         });
       }
-      
       await query;
     } on PostgrestException catch (e) {
       _handlePostgrestError(e, 'delete from $table');
     }
   }
 
-  // Store search
   static Future<List<Map<String, dynamic>>> getNearbyStoresWithPlant({
     required double latitude,
     required double longitude,
@@ -122,14 +109,14 @@ class SupabaseDatabaseService {
     double radiusInKm = 50.0,
   }) async {
     try {
-      final result = await _client.rpc('get_nearby_stores_with_similar_plants', params: {
+      final result =
+          await _client.rpc('get_nearby_stores_with_similar_plants', params: {
         'p_lat': latitude,
         'p_long': longitude,
         'p_plant_name': plantName,
         'p_radius_km': radiusInKm,
         'similarity_threshold': 0.2,
       });
-
       return List<Map<String, dynamic>>.from(result);
     } catch (e) {
       debugPrint('Search error: $e');
@@ -137,7 +124,6 @@ class SupabaseDatabaseService {
     }
   }
 
-  // User profile methods
   static Future<Map<String, dynamic>?> getUserProfile(String userId) async {
     return _selectSingle(
       table: 'user_profiles',
@@ -146,11 +132,13 @@ class SupabaseDatabaseService {
     );
   }
 
-  static Future<Map<String, dynamic>?> getCompleteUserProfile(String userId) async {
+  static Future<Map<String, dynamic>?> getCompleteUserProfile(
+      String userId) async {
     return getUserProfile(userId);
   }
 
-  static Future<void> updateUserProfile(String userId, Map<String, dynamic> updates) async {
+  static Future<void> updateUserProfile(
+      String userId, Map<String, dynamic> updates) async {
     await _update(
       table: 'user_profiles',
       updates: updates,
@@ -192,7 +180,6 @@ class SupabaseDatabaseService {
     }
   }
 
-  // Plant methods
   static Future<List<Map<String, dynamic>>> getFeaturedPlants() async {
     return _selectList(
       table: 'plants',
@@ -212,7 +199,8 @@ class SupabaseDatabaseService {
     );
   }
 
-  static Future<List<Map<String, dynamic>>> getAllStorePlants(String storeId) async {
+  static Future<List<Map<String, dynamic>>> getAllStorePlants(
+      String storeId) async {
     return _selectList(
       table: 'plants',
       filters: {'store_id': storeId},
@@ -221,9 +209,9 @@ class SupabaseDatabaseService {
     );
   }
 
-  static Future<Map<String, dynamic>> createPlant(Map<String, dynamic> plantData) async {
+  static Future<Map<String, dynamic>> createPlant(
+      Map<String, dynamic> plantData) async {
     final result = await _insert(table: 'plants', data: plantData);
-
     final userId = SupabaseService.currentUser?.id;
     if (userId != null) {
       _createLedgerEntryAsync(
@@ -234,11 +222,11 @@ class SupabaseDatabaseService {
         plantImageUrl: result['image_url'] as String?,
       );
     }
-
     return result;
   }
 
-  static Future<void> updatePlant(String plantId, Map<String, dynamic> updates) async {
+  static Future<void> updatePlant(
+      String plantId, Map<String, dynamic> updates) async {
     await _update(
       table: 'plants',
       updates: updates,
@@ -251,7 +239,8 @@ class SupabaseDatabaseService {
     await _delete(table: 'plants', filterKey: 'id', filterValue: plantId);
   }
 
-  static Future<List<Map<String, dynamic>>> getPlantsByIds(List<String> ids) async {
+  static Future<List<Map<String, dynamic>>> getPlantsByIds(
+      List<String> ids) async {
     if (ids.isEmpty) return [];
     try {
       final result = await _client.from('plants').select().inFilter('id', ids);
@@ -288,8 +277,8 @@ class SupabaseDatabaseService {
     );
   }
 
-  // Store methods
-  static Future<List<Map<String, dynamic>>> getStoresByUser(String userId) async {
+  static Future<List<Map<String, dynamic>>> getStoresByUser(
+      String userId) async {
     return _selectList(
       table: 'stores',
       filters: {'user_id': userId},
@@ -298,11 +287,13 @@ class SupabaseDatabaseService {
     );
   }
 
-  static Future<Map<String, dynamic>> createStore(Map<String, dynamic> storeData) async {
+  static Future<Map<String, dynamic>> createStore(
+      Map<String, dynamic> storeData) async {
     return _insert(table: 'stores', data: storeData);
   }
 
-  static Future<void> updateStore(String storeId, Map<String, dynamic> updates) async {
+  static Future<void> updateStore(
+      String storeId, Map<String, dynamic> updates) async {
     await _update(
       table: 'stores',
       updates: updates,
@@ -311,17 +302,18 @@ class SupabaseDatabaseService {
     );
   }
 
-  static Future<List<Map<String, dynamic>>> getStoresByIds(List<String> storeIds) async {
+  static Future<List<Map<String, dynamic>>> getStoresByIds(
+      List<String> storeIds) async {
     if (storeIds.isEmpty) return [];
     try {
-      final result = await _client.from('stores').select().inFilter('id', storeIds);
+      final result =
+          await _client.from('stores').select().inFilter('id', storeIds);
       return List<Map<String, dynamic>>.from(result);
     } on PostgrestException catch (e) {
       _handlePostgrestError(e, 'get stores by IDs');
     }
   }
 
-  // Favorite methods
   static Future<List<String>> getFavoritePlants(String userId) async {
     final result = await _selectList(
       table: 'favorite_plants',
@@ -383,7 +375,6 @@ class SupabaseDatabaseService {
           .select('*, stores!inner(*)')
           .inFilter('store_id', storeIds)
           .eq('is_available', true);
-
       final plants = List<Map<String, dynamic>>.from(result);
       plants.shuffle();
       return plants.take(limit).toList();
@@ -392,8 +383,8 @@ class SupabaseDatabaseService {
     }
   }
 
-  // Notification methods
-  static Future<List<Map<String, dynamic>>> getNotifications(String userId) async {
+  static Future<List<Map<String, dynamic>>> getNotifications(
+      String userId) async {
     return _selectList(
       table: 'notifications',
       filters: {'recipient_user_id': userId},
@@ -438,8 +429,8 @@ class SupabaseDatabaseService {
     );
   }
 
-  // Plant ledger methods
-  static Future<List<Map<String, dynamic>>> getPlantLedgerHistory(String userId) async {
+  static Future<List<Map<String, dynamic>>> getPlantLedgerHistory(
+      String userId) async {
     return _selectList(
       table: 'plant_ledger',
       filters: {'user_id': userId},
@@ -459,6 +450,24 @@ class SupabaseDatabaseService {
       plantId: plantId,
       plantName: plantName,
       action: 'DELETED',
+      plantImageUrl: plantImageUrl,
+    );
+  }
+
+  // ADDED: New function to specifically log quantity updates
+  static Future<void> createQuantityUpdateLedgerEntry({
+    required String userId,
+    required String plantId,
+    required String plantName,
+    required int newQuantity,
+    String? plantImageUrl,
+  }) async {
+    // The action 'UPDATED' will now be saved in the database
+    await createLedgerEntry(
+      userId: userId,
+      plantId: plantId,
+      plantName: 'Stock for $plantName updated to $newQuantity',
+      action: 'UPDATED',
       plantImageUrl: plantImageUrl,
     );
   }
@@ -504,12 +513,12 @@ class SupabaseDatabaseService {
     });
   }
 
-  // Plant scan methods
   static Future<void> createPlantScan(Map<String, dynamic> scanData) async {
     await _insert(table: 'plant_scans', data: scanData);
   }
 
-  static Future<List<Map<String, dynamic>>> getScanHistory(String userId) async {
+  static Future<List<Map<String, dynamic>>> getScanHistory(
+      String userId) async {
     return _selectList(
       table: 'plant_scans',
       filters: {'user_id': userId},
@@ -518,12 +527,16 @@ class SupabaseDatabaseService {
     );
   }
 
-  static double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+  static double _calculateDistance(
+      double lat1, double lon1, double lat2, double lon2) {
     const earthRadius = 6371.0;
     final dLat = _toRadians(lat2 - lat1);
     final dLon = _toRadians(lon2 - lon1);
     final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(_toRadians(lat1)) * cos(_toRadians(lat2)) * sin(dLon / 2) * sin(dLon / 2);
+        cos(_toRadians(lat1)) *
+            cos(_toRadians(lat2)) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
     final c = 2 * atan2(sqrt(a), sqrt(1 - a));
     return earthRadius * c;
   }

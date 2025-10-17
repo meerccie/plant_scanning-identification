@@ -1,5 +1,5 @@
-// lib/seller_pages/seller_my_plants.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/supabase_database_service.dart';
 import '../providers/auth_provider.dart';
@@ -24,7 +24,7 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
   final int _maxFeatured = 5;
   final TextEditingController _searchController = TextEditingController();
   String _sortOrder = 'newest';
-  bool _isDeleting = false; // ADDED: State to manage deletion in progress
+  bool _isDeleting = false;
 
   @override
   void initState() {
@@ -114,6 +114,61 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
     }
   }
 
+  Future<void> _showEditQuantityDialog(String plantId, int currentQuantity) async {
+    final quantityController = TextEditingController(text: currentQuantity.toString());
+    final formKey = GlobalKey<FormState>();
+
+    final newQuantity = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Stock Quantity'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: quantityController,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: const InputDecoration(labelText: 'New Quantity'),
+            validator: (val) {
+              if (val == null || val.isEmpty) return 'Quantity cannot be empty';
+              if (int.tryParse(val) == null) return 'Invalid number';
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(context, int.parse(quantityController.text));
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (newQuantity != null && newQuantity != currentQuantity && mounted) {
+      try {
+        await SupabaseDatabaseService.updatePlant(plantId, {'quantity': newQuantity});
+        await _loadPlants();
+        if(mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Quantity updated successfully.'), backgroundColor: AppColors.success),
+          );
+        }
+      } catch (e) {
+        if(mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to update quantity: $e'), backgroundColor: AppColors.error),
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _togglePlantAvailability(
       String plantId, bool currentStatus) async {
     try {
@@ -182,7 +237,6 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
   }
 
   Future<void> _deletePlant(String plantId, Map<String, dynamic> plant) async {
-    // FIX: Guard context use across async gap.
     if (!mounted) return;
     
     final confirmed = await showDialog<bool>(
@@ -203,16 +257,13 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
       ),
     );
     
-    // FIX: Add mounted check after the dialog is dismissed.
     if (!mounted || confirmed != true) return;
     
-    // ADDED: Set deleting state
     setState(() => _isDeleting = true); 
 
     try {
       final userId = context.read<AuthProvider>().user?.id;
 
-      // 1. Create Ledger Entry for DELETE action (ENSURING it's done before the plant record is gone)
       if (userId != null) {
         await SupabaseDatabaseService.createDeletedPlantLedgerEntry(
           plantId: plantId,
@@ -222,11 +273,8 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
         );
       }
 
-      // 2. Delete the plant record (now safe from duplicate ledger call)
-      // FIXED: Remove the extra parameter
       await SupabaseDatabaseService.deletePlant(plantId);
       
-      // 3. Refresh the plant list
       await _loadPlants();
       
       if (mounted) {
@@ -247,7 +295,6 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
         );
       }
     } finally {
-      // ADDED: Reset deleting state
       if (mounted) setState(() => _isDeleting = false);
     }
   }
@@ -296,8 +343,7 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
                   child: Material(
                     elevation: 4.0,
                     borderRadius: BorderRadius.circular(12.0),
-                    // FIXED: Replace deprecated withOpacity
-                    shadowColor: Colors.black.withAlpha(25), // ~10% opacity
+                    shadowColor: Colors.black.withAlpha(25),
                     child: TextField(
                       controller: _searchController,
                       decoration: InputDecoration(
@@ -371,6 +417,7 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
                                 _toBool(plant['is_featured']);
                             final canFeature =
                                 !isFeatured && _featuredCount < _maxFeatured;
+                            final quantity = plant['quantity'] ?? 0;
 
                             return Card(
                               color: AppColors.accentColor,
@@ -419,6 +466,11 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
                                       ),
                                     ),
                                     const SizedBox(height: 4),
+                                    Text('Stock: $quantity',
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.textPrimary)),
+                                    const SizedBox(height: 4),
                                     Row(
                                       children: [
                                         _buildStatusChip(
@@ -441,10 +493,10 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
                                 trailing: PopupMenuButton<String>(
                                   color: Colors.white,
                                   onSelected: (value) {
-                                    // ADDED: Prevent re-entry if a delete operation is in progress
                                     if (_isDeleting) return;
-
-                                    if (value == 'toggle') {
+                                    if(value == 'edit_quantity'){
+                                      _showEditQuantityDialog(plantId, quantity);
+                                    } else if (value == 'toggle') {
                                       _togglePlantAvailability(
                                           plantId, isAvailable);
                                     } else if (value == 'feature_toggle') {
@@ -455,6 +507,11 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
                                     }
                                   },
                                   itemBuilder: (context) => [
+                                    const PopupMenuItem(
+                                      value: 'edit_quantity',
+                                      child: Text('Edit Quantity')
+                                    ),
+                                    const PopupMenuDivider(),
                                     PopupMenuItem(
                                       value: 'toggle',
                                       child: Text(
@@ -511,7 +568,6 @@ class _SellerMyPlantsState extends State<SellerMyPlants> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        // FIXED: Replace deprecated withOpacity
         color: Color.fromRGBO(color.red, color.green, color.blue, 0.1),
         borderRadius: BorderRadius.circular(10),
       ),

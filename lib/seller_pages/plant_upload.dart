@@ -1,6 +1,6 @@
-// lib/seller_pages/plant_upload.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/supabase_database_service.dart';
 import '../services/supabase_storage_service.dart';
@@ -24,9 +24,10 @@ class _UpdatedPlantUploadPageState extends State<UpdatedPlantUploadPage> {
       TextEditingController();
   final TextEditingController _priceRangeController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _quantityController = TextEditingController();
 
   File? _imageFile;
-  bool _isUploading = false; // Controls all API operations
+  bool _isUploading = false;
   Map<String, dynamic>? _store;
   bool _isFeatured = false;
   bool _isIdentified = false;
@@ -60,7 +61,6 @@ class _UpdatedPlantUploadPageState extends State<UpdatedPlantUploadPage> {
   }
 
   Future<void> _submitForm() async {
-    // FIX: Add check for existing upload process
     if (_isUploading) return;
     
     if (!_formKey.currentState!.validate() ||
@@ -83,7 +83,6 @@ class _UpdatedPlantUploadPageState extends State<UpdatedPlantUploadPage> {
       return;
     }
 
-    // FIX: Set _isUploading immediately at the start of the process
     setState(() => _isUploading = true);
 
     try {
@@ -101,16 +100,11 @@ class _UpdatedPlantUploadPageState extends State<UpdatedPlantUploadPage> {
         'store_id': _store!['id'],
         'is_available': true,
         'is_featured': _isFeatured,
+        'quantity': int.tryParse(_quantityController.text.trim()) ?? 0,
       };
 
-      // This performs the database insert AND creates the ledger entry
-      final newPlant = await SupabaseDatabaseService.createPlant(plantData);
+      await SupabaseDatabaseService.createPlant(plantData);
       
-      if (!mounted) return;
-
-      // REMOVED: Redundant explicit call to createLedgerEntry here. 
-      // It is now handled inside SupabaseDatabaseService.createPlant(plantData).
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -130,7 +124,6 @@ class _UpdatedPlantUploadPageState extends State<UpdatedPlantUploadPage> {
         );
       }
     } finally {
-      // FIX: Ensure _isUploading is reset only when mounted
       if (mounted) {
         setState(() => _isUploading = false);
       }
@@ -138,10 +131,7 @@ class _UpdatedPlantUploadPageState extends State<UpdatedPlantUploadPage> {
   }
 
   Future<void> _identifyPlant() async {
-    if (_imageFile == null) return;
-    
-    // Check if another API call is already running
-    if (_isUploading) return; 
+    if (_imageFile == null || _isUploading) return; 
 
     setState(() => _isUploading = true);
     _isIdentified = false;
@@ -226,7 +216,6 @@ class _UpdatedPlantUploadPageState extends State<UpdatedPlantUploadPage> {
                       key: _formKey,
                       child: Column(
                         children: [
-                          // EnhancedImagePickerWidget now handles permission checking
                           EnhancedImagePickerWidget(
                             onImageSelected: (file) => setState(() {
                               _imageFile = file;
@@ -274,7 +263,6 @@ class _UpdatedPlantUploadPageState extends State<UpdatedPlantUploadPage> {
                           TextFormField(
                             controller: _priceRangeController,
                             enabled: fieldsEnabled,
-                            keyboardType: TextInputType.number,
                             decoration: InputDecoration(
                               labelText: 'Price Range (e.g., ₱100-₱200)',
                               hintText:
@@ -283,6 +271,26 @@ class _UpdatedPlantUploadPageState extends State<UpdatedPlantUploadPage> {
                             validator: (val) => val == null || val.isEmpty
                                 ? 'Price Range is required'
                                 : null,
+                          ),
+                          TextFormField(
+                            controller: _quantityController,
+                            enabled: fieldsEnabled,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            decoration: InputDecoration(
+                                labelText: 'Quantity in Stock',
+                                hintText: fieldsEnabled
+                                    ? 'Enter available stock'
+                                    : 'Identify plant first'),
+                            validator: (val) {
+                              if (val == null || val.isEmpty) {
+                                return 'Quantity is required';
+                              }
+                              if (int.tryParse(val) == null) {
+                                return 'Please enter a valid number';
+                              }
+                              return null;
+                            },
                           ),
                           TextFormField(
                             controller: _descriptionController,
@@ -317,7 +325,6 @@ class _UpdatedPlantUploadPageState extends State<UpdatedPlantUploadPage> {
                             ),
                           ),
                           const SizedBox(height: 20),
-                          // The CustomButton handles the isLoading state
                           ElevatedButton(
                             onPressed: _isUploading || !fieldsEnabled
                                 ? null

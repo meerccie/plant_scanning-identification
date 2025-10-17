@@ -1,10 +1,9 @@
-// lib/pages/plant_details_page.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import '../components/app_colors.dart';
-import '../config/app_theme.dart'; // Import the theme helper
+import '../config/app_theme.dart';
 import '../providers/plant_provider.dart';
 import '../services/supabase_service.dart';
 import '../services/supabase_database_service.dart';
@@ -64,6 +63,7 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
           final store = plant['stores'];
           final sellerId = store?['user_id'];
           final isOwner = sellerId == SupabaseService.currentUser?.id;
+          final quantity = plant['quantity'] ?? 0;
 
           return CustomScrollView(
             slivers: [
@@ -75,18 +75,16 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // --- Plant Core Details ---
                         Text(
                           plant['scientific_name'] ?? 'Species Unknown',
                           style: AppTheme.lato(
                             fontStyle: FontStyle.italic,
                             color: AppColors.primaryColor
-                                .withOpacity(0.8), // Using primary color
+                                .withOpacity(0.8),
                             fontSize: 20,
                           ),
                         ),
                         const SizedBox(height: 8),
-
                         _buildDetailCard(
                           context,
                           title: 'Description',
@@ -94,7 +92,6 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
                               'No detailed description provided.',
                           icon: Icons.info_outline,
                         ),
-
                         _buildDetailCard(
                             context,
                             title: 'Price Range',
@@ -103,8 +100,14 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
                             icon: Icons.money,
                             contentStyle: AppTheme.lato(
                                 fontSize: 22, color: AppColors.secondaryColor)),
-
-                        // --- Store/Seller Information ---
+                        _buildDetailCard(
+                          context,
+                          title: 'Stock',
+                          content: '$quantity available',
+                          icon: Icons.inventory_2_outlined,
+                          contentStyle: AppTheme.lato(
+                              fontSize: 18, color: AppColors.primaryColor),
+                        ),
                         if (!widget.hideStoreNavigation &&
                             store != null &&
                             !isOwner)
@@ -120,8 +123,6 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
       ),
     );
   }
-
-  // --- Helper Widgets ---
 
   Widget _buildSliverAppBar(
       BuildContext context, Map<String, dynamic> plant, bool isOwner) {
@@ -215,7 +216,7 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
               style: contentStyle ??
                   AppTheme.lato(
                       fontSize: 16,
-                      color: AppColors.primaryColor), // Set default to primary color
+                      color: AppColors.primaryColor),
             ),
           ],
         ),
@@ -317,15 +318,14 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
             style: AppTheme.lato(
                 fontWeight: FontWeight.bold,
                 color: AppColors.primaryColor,
-                fontSize: 16)), // Use primary color
+                fontSize: 16)),
         subtitle: Text(subtitle,
             style: AppTheme.lato(
                 color: AppColors.primaryColor
-                    .withOpacity(0.7))), // Use primary color
+                    .withOpacity(0.7))),
         trailing: const Icon(Icons.chevron_right, color: AppColors.primaryColor),
         onTap: onTap,
       ),
     );
   }
 }
-

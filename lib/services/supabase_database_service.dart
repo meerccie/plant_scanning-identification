@@ -1,4 +1,3 @@
-// lib/services/supabase_database_service.dart
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -204,11 +203,9 @@ class SupabaseDatabaseService {
     );
   }
 
-  // --- MODIFIED: This now fetches the related store data ---
   static Future<Map<String, dynamic>?> getPlantById(String plantId) async {
     return _selectSingle(
       table: 'plants',
-      // This tells Supabase to get all plant columns (*) AND all columns from the related 'stores' table
       select: '*, stores(*)',
       filterKey: 'id',
       filterValue: plantId,

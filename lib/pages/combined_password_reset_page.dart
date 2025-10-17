@@ -1,10 +1,6 @@
 // lib/pages/combined_password_reset_page.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../components/app_colors.dart';
-import '../components/input_field.dart';
-import '../components/custom_button.dart';
-import '../providers/auth_provider.dart';
 import '../services/supabase_auth_service.dart';
 
 class CombinedPasswordResetPage extends StatefulWidget {
@@ -41,9 +37,7 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
     if (value.length > 72) {
       return 'Password must be less than 72 characters';
     }
-    if (!RegExp(r'[A-Za-z]').hasMatch(value)) {
-      return 'Password must contain at least one letter';
-    }
+    // --- REMOVED: "At least one letter" requirement ---
     return null;
   }
 
@@ -109,7 +103,6 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // --- MODIFIED: Set the background color ---
       backgroundColor: AppColors.backgroundColor,
       appBar: AppBar(
         title: const Text('Reset Password'),
@@ -144,7 +137,6 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
                 
                 const SizedBox(height: 12),
                 
-                // --- MODIFIED: Email display section ---
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -253,7 +245,7 @@ class _CombinedPasswordResetPageState extends State<CombinedPasswordResetPage> {
                       ),
                       const SizedBox(height: 8),
                       _buildRequirement('At least 6 characters long'),
-                      _buildRequirement('Contains at least one letter'),
+                      // --- REMOVED: "Contains at least one letter" UI ---
                       _buildRequirement('Both passwords must match'),
                     ],
                   ),

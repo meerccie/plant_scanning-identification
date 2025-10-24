@@ -27,13 +27,17 @@ jobs:
         curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
         
         # Use the explicit path to shorebird
-        /home/runner/.config/shorebird/bin/shorebird --version
+        SHOREBIRD_CMD="/home/runner/.config/shorebird/bin/shorebird"
         
-        # Login without --ci flag (it's not available in this version)
-        echo "$SHOREBIRD_TOKEN" | /home/runner/.config/shorebird/bin/shorebird login
+        # Verify installation
+        $SHOREBIRD_CMD --version
         
-        # Create release and patch
-        /home/runner/.config/shorebird/bin/shorebird release android --force
-        /home/runner/.config/shorebird/bin/shorebird patch android
+        # Logout first to clear any existing session, then login
+        $SHOREBIRD_CMD logout || true  # Ignore error if not logged in
+        echo "$SHOREBIRD_TOKEN" | $SHOREBIRD_CMD login
+        
+        # Create release and patch (remove --force flag)
+        $SHOREBIRD_CMD release android
+        $SHOREBIRD_CMD patch android
       env:
         SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}

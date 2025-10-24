@@ -5,28 +5,10 @@ on:
     branches: [ main ]
 
 jobs:
-  quick-checks:
-    name: ⚡ Quick Checks
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - uses: subosito/flutter-action@v2
-      with:
-        flutter-version: '3.32.8'
-        cache: true
-    
-    - run: flutter pub get
-    
-    - name: Run tests
-      run: flutter test --concurrency=4
-
   deploy:
     name: 🚀 Deploy
-    needs: quick-checks
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     
     steps:
     - uses: actions/checkout@v4
@@ -36,18 +18,28 @@ jobs:
         flutter-version: '3.32.8'
     
     - run: flutter pub get
+    
+    - run: flutter test --concurrency=4
     
     - name: Deploy with Shorebird
       run: |
-        # Install Shorebird CLI
+        # Install Shorebird
         dart pub global activate shorebird
         
-        # Use the full path to shorebird binary
-        /home/runner/.pub-cache/bin/shorebird --version
+        # Find where dart packages are installed
+        echo "Dart SDK location:"
+        which dart
+        dart --version
         
-        # Login and deploy using full path
-        echo "$SHOREBIRD_TOKEN" | /home/runner/.pub-cache/bin/shorebird login --ci
-        /home/runner/.pub-cache/bin/shorebird release android --force
-        /home/runner/.pub-cache/bin/shorebird patch android
+        echo "Pub cache location:"
+        dart pub global list
+        
+        # Try to find shorebird in common locations
+        find /home/runner -name "shorebird" -type f 2>/dev/null || echo "Shorebird not found in /home/runner"
+        find /opt -name "shorebird" -type f 2>/dev/null || echo "Shorebird not found in /opt"
+        find ~ -name "shorebird" -type f 2>/dev/null || echo "Shorebird not found in home"
+        
+        # Try running shorebird directly
+        shorebird --version || echo "Shorebird not in PATH"
       env:
         SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}

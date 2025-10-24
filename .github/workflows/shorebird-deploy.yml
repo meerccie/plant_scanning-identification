@@ -21,7 +21,7 @@ jobs:
     
     - run: flutter test --concurrency=4
     
-    - name: Setup Shorebird
+    - name: Deploy with Shorebird
       run: |
         # Install Shorebird
         curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
@@ -33,25 +33,13 @@ jobs:
         $SHOREBIRD_CMD --version
         
         # Handle login
-        $SHOREBIRD_CMD logout || echo "No existing session to logout"
         echo "$SHOREBIRD_TOKEN" | $SHOREBIRD_CMD login
-        
-        # Remove existing shorebird.yaml and create new app
-        rm -f shorebird.yaml
-        $SHOREBIRD_CMD apps create --name "Plantitao" || echo "App may already exist"
-        $SHOREBIRD_CMD init --force || echo "Init may have failed, continuing..."
-      env:
-        SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
-    
-    - name: Deploy with Shorebird
-      run: |
-        SHOREBIRD_CMD="/home/runner/.config/shorebird/bin/shorebird"
         
         # Create release and patch
         $SHOREBIRD_CMD release android --no-confirm
         $SHOREBIRD_CMD patch android --no-confirm
         
-        echo "✅ Release and patch deployed successfully!"
+        echo "✅ Shorebird deployment successful!"
         echo "🎉 Users will receive the update automatically!"
       env:
         SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}

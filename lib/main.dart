@@ -42,7 +42,9 @@ Future<void> _initializeServices() async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // FIX: Removed shorebirdCodePush.init(). It's not needed for the CLI to work.
+  // For Shorebird 1.0.0, no initialization is needed
+  // The package auto-initializes
+
   await _initializeServices();
 
   runApp(const MyApp());
@@ -58,8 +60,8 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   final AppLinks _appLinks = AppLinks();
   StreamSubscription<Uri>? _linkSubscription;
+  int? _currentPatchNumber;
 
-  // FIX: Added a method to safely trigger a rebuild from the root.
   void _restartApp() {
     setState(() {});
   }
@@ -70,12 +72,48 @@ class _MyAppState extends State<MyApp> {
     if (!isSupabaseInitialized) return;
     _initDeepLinks();
     _setupAuthStateListener();
+    _checkForUpdates();
   }
 
   @override
   void dispose() {
     _linkSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _checkForUpdates() async {
+    try {
+      // Check if Shorebird is available
+      final isShorebirdAvailable = await shorebirdCodePush.isShorebirdAvailable();
+      
+      if (!isShorebirdAvailable) {
+        debugPrint('Shorebird Engine not available');
+        return;
+      }
+
+      // Get current patch number
+      _currentPatchNumber = await shorebirdCodePush.currentPatchNumber();
+      debugPrint('Current patch number: $_currentPatchNumber');
+
+      // Check for new patches
+      final newPatchNumber = await shorebirdCodePush.nextPatchNumber();
+      
+      if (newPatchNumber != null && _currentPatchNumber != null && newPatchNumber > _currentPatchNumber!) {
+        debugPrint('New patch available: $newPatchNumber');
+        
+        // Download and apply the update
+        await shorebirdCodePush.downloadUpdateIfAvailable();
+        
+        // Optional: Force restart after update
+        // WidgetsBinding.instance.addPostFrameCallback((_) {
+        //   _restartApp();
+        // });
+      } else {
+        debugPrint('No new patches available');
+      }
+    } catch (error) {
+      debugPrint('Error checking for updates: $error');
+    }
   }
 
   void _setupAuthStateListener() {
@@ -128,7 +166,6 @@ class _MyAppState extends State<MyApp> {
         debugShowCheckedModeBanner: false,
         navigatorKey: navigatorKey,
         theme: AppTheme.lightTheme,
-        // FIX: Pass the restart method down to the error widget.
         home: AuthWrapper(onRetry: _restartApp),
         onGenerateRoute: AppRoutes.onGenerateRoute,
         builder: (context, child) {
@@ -144,14 +181,12 @@ class _MyAppState extends State<MyApp> {
 }
 
 class AuthWrapper extends StatelessWidget {
-  // FIX: Accept the retry callback.
   final VoidCallback onRetry;
   const AuthWrapper({super.key, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
     if (!isSupabaseInitialized) {
-      // FIX: Pass the onRetry callback to the error widget.
       return SupabaseErrorWidget(
         onRetry: () async {
           await _initializeServices();
@@ -245,7 +280,6 @@ class PermissionLockScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // FIX: Replaced deprecated withOpacity with withAlpha.
       backgroundColor: Colors.black.withAlpha(191), // ~75% opacity
       body: Center(
         child: Container(
@@ -260,15 +294,28 @@ class PermissionLockScreen extends StatelessWidget {
             children: [
               const Icon(Icons.lock_outline, size: 60, color: AppColors.primaryColor),
               const SizedBox(height: 16),
-              const Text('Permissions Required', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primaryColor), textAlign: TextAlign.center),
+              const Text(
+                'Permissions Required', 
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primaryColor), 
+                textAlign: TextAlign.center
+              ),
               const SizedBox(height: 12),
-              const Text('To use all features of Plantitao, please grant the required camera and location permissions from your profile settings.', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: AppColors.textSecondary)),
+              const Text(
+                'To use all features of Plantitao, please grant the required camera and location permissions from your profile settings.', 
+                textAlign: TextAlign.center, 
+                style: TextStyle(fontSize: 16, color: AppColors.textSecondary)
+              ),
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 icon: const Icon(Icons.settings),
                 label: const Text('Go to Settings'),
                 onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage(expandPermissionsSection: true)));
+                  Navigator.push(
+                    context, 
+                    MaterialPageRoute(
+                      builder: (_) => const ProfilePage(expandPermissionsSection: true)
+                    )
+                  );
                 },
               ),
             ],

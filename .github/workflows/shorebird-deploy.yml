@@ -26,20 +26,29 @@ jobs:
         # Install Shorebird
         dart pub global activate shorebird
         
-        # Find where dart packages are installed
-        echo "Dart SDK location:"
-        which dart
-        dart --version
+        # Use the official shorebird installation method
+        /home/runner/.pub-cache/bin/shorebird --version || (curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash && $HOME/.shorebird/bin/shorebird --version)
         
-        echo "Pub cache location:"
-        dart pub global list
+        # Try different paths to find shorebird
+        if command -v shorebird &> /dev/null; then
+          echo "Shorebird found in PATH"
+          SHOREBIRD_CMD="shorebird"
+        elif [ -f "/home/runner/.pub-cache/bin/shorebird" ]; then
+          echo "Shorebird found in pub cache"
+          SHOREBIRD_CMD="/home/runner/.pub-cache/bin/shorebird"
+        elif [ -f "$HOME/.shorebird/bin/shorebird" ]; then
+          echo "Shorebird found in shorebird bin"
+          SHOREBIRD_CMD="$HOME/.shorebird/bin/shorebird"
+        else
+          echo "Installing Shorebird via install script"
+          curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
+          SHOREBIRD_CMD="$HOME/.shorebird/bin/shorebird"
+        fi
         
-        # Try to find shorebird in common locations
-        find /home/runner -name "shorebird" -type f 2>/dev/null || echo "Shorebird not found in /home/runner"
-        find /opt -name "shorebird" -type f 2>/dev/null || echo "Shorebird not found in /opt"
-        find ~ -name "shorebird" -type f 2>/dev/null || echo "Shorebird not found in home"
-        
-        # Try running shorebird directly
-        shorebird --version || echo "Shorebird not in PATH"
+        # Use the found command
+        $SHOREBIRD_CMD --version
+        echo "$SHOREBIRD_TOKEN" | $SHOREBIRD_CMD login --ci
+        $SHOREBIRD_CMD release android --force
+        $SHOREBIRD_CMD patch android
       env:
         SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}

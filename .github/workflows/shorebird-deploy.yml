@@ -8,7 +8,7 @@ jobs:
   deploy:
     name: 🚀 Deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     
     steps:
     - uses: actions/checkout@v4
@@ -23,21 +23,24 @@ jobs:
     
     - name: Deploy with Shorebird
       run: |
-        # Install Shorebird using the official install script
+        # Install Shorebird
         curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
         
-        # Use the explicit path to shorebird
+        # Use explicit path
         SHOREBIRD_CMD="/home/runner/.config/shorebird/bin/shorebird"
         
         # Verify installation
         $SHOREBIRD_CMD --version
         
-        # Logout first to clear any existing session, then login
-        $SHOREBIRD_CMD logout || true  # Ignore error if not logged in
+        # Handle login
+        $SHOREBIRD_CMD logout || echo "No existing session to logout"
         echo "$SHOREBIRD_TOKEN" | $SHOREBIRD_CMD login
         
-        # Create release and patch (remove --force flag)
-        $SHOREBIRD_CMD release android
-        $SHOREBIRD_CMD patch android
+        # Create new release and patch
+        $SHOREBIRD_CMD release android --no-confirm
+        $SHOREBIRD_CMD patch android --no-confirm
+        
+        echo "✅ Release and patch deployed successfully!"
+        echo "🎉 Users will receive the update automatically!"
       env:
         SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}

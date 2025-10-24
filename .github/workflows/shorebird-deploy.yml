@@ -26,18 +26,10 @@ jobs:
         # Install Shorebird using the official install script
         curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
         
-        # Add the correct Shorebird path to PATH
-        echo "/home/runner/.config/shorebird/bin" >> $GITHUB_PATH
-        
-        # Wait for PATH to update
-        sleep 2
-        
-        # Verify installation
-        shorebird --version
-        
-        # Login and deploy
-        echo "$SHOREBIRD_TOKEN" | shorebird login --ci
-        shorebird release android --force
-        shorebird patch android
+        # Use the explicit path to shorebird (no PATH configuration needed)
+        /home/runner/.config/shorebird/bin/shorebird --version
+        echo "$SHOREBIRD_TOKEN" | /home/runner/.config/shorebird/bin/shorebird login --ci
+        /home/runner/.config/shorebird/bin/shorebird release android --force
+        /home/runner/.config/shorebird/bin/shorebird patch android
       env:
         SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}

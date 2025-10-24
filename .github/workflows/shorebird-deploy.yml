@@ -23,32 +23,21 @@ jobs:
     
     - name: Deploy with Shorebird
       run: |
-        # Install Shorebird
-        dart pub global activate shorebird
+        # Install Shorebird using the official install script
+        curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
         
-        # Use the official shorebird installation method
-        /home/runner/.pub-cache/bin/shorebird --version || (curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash && $HOME/.shorebird/bin/shorebird --version)
+        # Add the correct Shorebird path to PATH
+        echo "/home/runner/.config/shorebird/bin" >> $GITHUB_PATH
         
-        # Try different paths to find shorebird
-        if command -v shorebird &> /dev/null; then
-          echo "Shorebird found in PATH"
-          SHOREBIRD_CMD="shorebird"
-        elif [ -f "/home/runner/.pub-cache/bin/shorebird" ]; then
-          echo "Shorebird found in pub cache"
-          SHOREBIRD_CMD="/home/runner/.pub-cache/bin/shorebird"
-        elif [ -f "$HOME/.shorebird/bin/shorebird" ]; then
-          echo "Shorebird found in shorebird bin"
-          SHOREBIRD_CMD="$HOME/.shorebird/bin/shorebird"
-        else
-          echo "Installing Shorebird via install script"
-          curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
-          SHOREBIRD_CMD="$HOME/.shorebird/bin/shorebird"
-        fi
+        # Wait for PATH to update
+        sleep 2
         
-        # Use the found command
-        $SHOREBIRD_CMD --version
-        echo "$SHOREBIRD_TOKEN" | $SHOREBIRD_CMD login --ci
-        $SHOREBIRD_CMD release android --force
-        $SHOREBIRD_CMD patch android
+        # Verify installation
+        shorebird --version
+        
+        # Login and deploy
+        echo "$SHOREBIRD_TOKEN" | shorebird login --ci
+        shorebird release android --force
+        shorebird patch android
       env:
         SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}

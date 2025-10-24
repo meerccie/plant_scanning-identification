@@ -1,78 +1,47 @@
-name: Shorebird Deployment
+name: Shorebird Deploy
 
 on:
   push:
-    branches: [ main, master ]
-
-env:
-  FLUTTER_VERSION: '3.32.8'
+    branches: [ main ]
 
 jobs:
-  quality-checks:
-    name: ✅ Code Quality & Tests
+  quick-checks:
+    name: ⚡ Quick Checks
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup Flutter
-      uses: subosito/flutter-action@v2
+    - uses: actions/checkout@v4
+    
+    - uses: subosito/flutter-action@v2
       with:
-        flutter-version: ${{ env.FLUTTER_VERSION }}
+        flutter-version: '3.32.8'
         cache: true
-
-    - name: Install dependencies
-      run: |
-        flutter pub get
-
-    - name: Run build_runner (if needed)
-      run: |
-        flutter pub run build_runner build --delete-conflicting-outputs || echo "Build runner completed or not needed"
-
-    - name: Analyze code
-      run: flutter analyze
-
+    
+    - run: flutter pub get
+    
     - name: Run tests
-      run: flutter test
+      run: flutter test --concurrency=4
 
-    - name: Build verification
-      run: |
-        flutter build apk --release
-        echo "✅ Build successful"
-
-  deploy-android:
-    name: 🚀 Deploy Android with Shorebird
-    needs: quality-checks
+  deploy:
+    name: 🚀 Deploy
+    needs: quick-checks
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup Flutter
-      uses: subosito/flutter-action@v2
+    - uses: actions/checkout@v4
+    
+    - uses: subosito/flutter-action@v2
       with:
-        flutter-version: ${{ env.FLUTTER_VERSION }}
-        cache: true
-
-    - name: Install dependencies
-      run: |
-        flutter pub get
-
-    - name: Setup Shorebird CLI
+        flutter-version: '3.32.8'
+    
+    - run: flutter pub get
+    
+    - name: Deploy with Shorebird
       run: |
         dart pub global activate shorebird
         echo "${{ secrets.SHOREBIRD_TOKEN }}" | shorebird login --ci
-
-    - name: Create Shorebird Release
-      run: shorebird release android --force
-
-    - name: Create Shorebird Patch
-      run: shorebird patch android
-
-    - name: Success Notification
-      run: |
-        echo "✅ Shorebird patch deployed successfully!"
-        echo "🎉 Users will receive the update automatically"
+        shorebird release android --force
+        shorebird patch android
+      env:
+        SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}

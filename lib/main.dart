@@ -84,7 +84,7 @@ class _MyAppState extends State<MyApp> {
   Future<void> _checkForUpdates() async {
     try {
       // Check if Shorebird is available
-      final isShorebirdAvailable = await shorebirdCodePush.isShorebirdAvailable();
+      final isShorebirdAvailable = shorebirdCodePush.isShorebirdAvailable();
       
       if (!isShorebirdAvailable) {
         debugPrint('Shorebird Engine not available');

@@ -26,9 +26,13 @@ jobs:
         # Install Shorebird using the official install script
         curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
         
-        # Use the explicit path to shorebird (no PATH configuration needed)
+        # Use the explicit path to shorebird
         /home/runner/.config/shorebird/bin/shorebird --version
-        echo "$SHOREBIRD_TOKEN" | /home/runner/.config/shorebird/bin/shorebird login --ci
+        
+        # Login without --ci flag (it's not available in this version)
+        echo "$SHOREBIRD_TOKEN" | /home/runner/.config/shorebird/bin/shorebird login
+        
+        # Create release and patch
         /home/runner/.config/shorebird/bin/shorebird release android --force
         /home/runner/.config/shorebird/bin/shorebird patch android
       env:

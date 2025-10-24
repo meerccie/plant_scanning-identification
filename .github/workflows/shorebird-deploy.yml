@@ -37,23 +37,17 @@ jobs:
     
     - run: flutter pub get
     
-    - name: Install Shorebird CLI
+    - name: Deploy with Shorebird
       run: |
-        # Install Shorebird CLI globally
+        # Install Shorebird CLI
         dart pub global activate shorebird
         
-        # Add Shorebird to PATH
-        echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+        # Use the full path to shorebird binary
+        /home/runner/.pub-cache/bin/shorebird --version
         
-        # Verify installation
-        shorebird --version
-
-    - name: Login to Shorebird
-      run: |
-        echo "${{ secrets.SHOREBIRD_TOKEN }}" | shorebird login --ci
-
-    - name: Create Shorebird Release
-      run: shorebird release android --force
-
-    - name: Create Shorebird Patch
-      run: shorebird patch android
+        # Login and deploy using full path
+        echo "$SHOREBIRD_TOKEN" | /home/runner/.pub-cache/bin/shorebird login --ci
+        /home/runner/.pub-cache/bin/shorebird release android --force
+        /home/runner/.pub-cache/bin/shorebird patch android
+      env:
+        SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}

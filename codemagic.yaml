@@ -1,81 +1,80 @@
 # This file must be in the root directory of your project.
-
 workflows:
-  # WORKFLOW 1: For creating the initial APK and registering it with Shorebird.
-  android-apk-release:
-    name: 🚀 Build & Register Initial APK
-    instance_type: linux_standard # FIXED: Changed from linux_x2 to a type available on the basic plan
+  # WORKFLOW 1: For creating the initial APK and registering it with Shorebird.
+  android-apk-release:
+    name: 🚀 Build & Register Initial APK
+    instance_type: linux_standard # FIXED: Changed from linux_x2 to a type available on the basic plan
 
-    environment:
-      flutter: stable
-      groups:
-        - shorebird_credentials
-        - keystore_credentials
-        - api_keys
-        - supabase_credentials
-      android_signing:
-        - meerc # Replace with the reference name from Codemagic UI
+    environment:
+      flutter: stable
+      groups:
+        - shorebird_credentials
+        - keystore_credentials
+        - api_keys
+        - supabase_credentials
+      android_signing:
+        - meerc # Replace with the reference name from Codemagic UI
 
-    scripts:
-      - name: 📦 Build and Register Shorebird APK
-        script: |
-          #!/bin/bash
-          
-          # 1. Install Shorebird CLI
-          curl --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
-          
-          # 2. Add Shorebird to the PATH
-          export PATH="$HOME/.shorebird/bin:$PATH"
-          
-          # 3. CRITICAL: Authenticate Shorebird using the secret token
-          # Assumes SHOREBIRD_TOKEN is the variable name in your 'shorebird_credentials' group
-          export SHOREBIRD_TOKEN="$SHOREBIRD_TOKEN"
-          
-          # 4. Define all client-side variables for Dart
-          DEFINES=(
-            "PLANTNET_API_KEY=$PLANTNET_API_KEY"
-            "PLANTNET_PROJECT=$PLANTNET_PROJECT"
-            "SUPABASE_URL=$SUPABASE_URL"
-            "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
-            "PERENUAL_API_KEY=$PERENUAL_API_KEY"
-            "GEMINI_API_KEY=$GEMINI_API_KEY"
-            "GOOGLE_MAPS_API_KEY=$GOOGLE_MAPS_API_KEY"
-            "OPENWEATHER_API_KEY=$OPENWEATHER_API_KEY"
-            # NOTE: SUPABASE_SERVICE_ROLE_KEY is a backend secret and should not be passed to the client app.
-          )
-          
-          # 5. Run the release command, passing defines via --dart-define
-          # The '--' separates Flutter-specific args from shorebird args
-          shorebird release android --artifact apk -- "${DEFINES[@]/#/--dart-define=}"
+    scripts:
+      - name: 📦 Build and Register Shorebird APK
+        script: |
+          #!/bin/bash
+          
+          # 1. Install Shorebird CLI
+          curl --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
+          
+          # 2. Add Shorebird to the PATH
+          export PATH="$HOME/.shorebird/bin:$PATH"
+          
+          # 3. CRITICAL: Authenticate Shorebird using the secret token
+          # Assumes SHOREBIRD_TOKEN is the variable name in your 'shorebird_credentials' group
+          export SHOREBIRD_TOKEN="$SHOREBIRD_TOKEN"
+          
+          # 4. Define all client-side variables for Dart
+          DEFINES=(
+            "PLANTNET_API_KEY=$PLANTNET_API_KEY"
+            "PLANTNET_PROJECT=$PLANTNET_PROJECT"
+            "SUPABASE_URL=$SUPABASE_URL"
+            "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
+            "PERENUAL_API_KEY=$PERENUAL_API_KEY"
+            "GEMINI_API_KEY=$GEMINI_API_KEY"
+            "GOOGLE_MAPS_API_KEY=$GOOGLE_MAPS_API_KEY"
+            "OPENWEATHER_API_KEY=$OPENWEATHER_API_KEY"
+            # NOTE: SUPABASE_SERVICE_ROLE_KEY is a backend secret and should not be passed to the client app.
+          )
+          
+          # 5. Run the release command, passing defines via --dart-define
+          # The '--' separates Flutter-specific args from shorebird args
+          shorebird release android --artifact apk -- "${DEFINES[@]/#/--dart-define=}"
 
-    artifacts:
-      - build/app/outputs/apk/release/app-release.apk
+    artifacts:
+      - build/app/outputs/apk/release/app-release.apk
 
-  # --------------------------------------------------------------------------
+  # --------------------------------------------------------------------------
 
-  # WORKFLOW 2: For pushing over-the-air (OTA) updates for an existing release.
-  android-patch-update:
-    name: 🩹 Push OTA Patch
-    instance_type: linux_standard # FIXED: Changed from linux_x2 to a type available on the basic plan
+  # WORKFLOW 2: For pushing over-the-air (OTA) updates for an existing release.
+  android-patch-update:
+    name: 🩹 Push OTA Patch
+    instance_type: linux_standard # FIXED: Changed from linux_x2 to a type available on the basic plan
 
-    environment:
-      flutter: stable
-      groups:
-        - shorebird_credentials
+    environment:
+      flutter: stable
+      groups:
+        - shorebird_credentials
 
-    scripts:
-      - name: 🩹 Create and Upload Patch
-        script: |
-          #!/bin/bash
-          
-          # 1. Install Shorebird CLI
-          curl --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
-          
-          # 2. Add Shorebird to the PATH
-          export PATH="$HOME/.shorebird/bin:$PATH"
+    scripts:
+      - name: 🩹 Create and Upload Patch
+        script: |
+          #!/bin/bash
+          
+          # 1. Install Shorebird CLI
+          curl --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
+          
+          # 2. Add Shorebird to the PATH
+          export PATH="$HOME/.shorebird/bin:$PATH"
 
-          # 3. CRITICAL: Authenticate Shorebird using the secret token
-          export SHOREBIRD_TOKEN="$SHOREBIRD_TOKEN"
-          
-          # 4. Run the patch command
-          shorebird patch android --release-version latest
+          # 3. CRITICAL: Authenticate Shorebird using the secret token
+          export SHOREBIRD_TOKEN="$SHOREBIRD_TOKEN"
+          
+          # 4. Run the patch command
+          shorebird patch android --release-version latest

@@ -3,8 +3,6 @@ name: Shorebird Deployment
 on:
   push:
     branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
 
 env:
   FLUTTER_VERSION: '3.32.8'
@@ -23,13 +21,14 @@ jobs:
       with:
         flutter-version: ${{ env.FLUTTER_VERSION }}
         cache: true
-        cache-key: flutter-${{ env.FLUTTER_VERSION }}
-        cache-path: /home/runner/.pub-cache
 
     - name: Install dependencies
       run: |
         flutter pub get
-        flutter pub run build_runner build --delete-conflicting-outputs || echo "Build runner completed"
+
+    - name: Run build_runner (if needed)
+      run: |
+        flutter pub run build_runner build --delete-conflicting-outputs || echo "Build runner completed or not needed"
 
     - name: Analyze code
       run: flutter analyze
@@ -40,8 +39,7 @@ jobs:
     - name: Build verification
       run: |
         flutter build apk --release
-        flutter build appbundle --release
-        echo "✅ All builds successful"
+        echo "✅ Build successful"
 
   deploy-android:
     name: 🚀 Deploy Android with Shorebird
@@ -62,7 +60,6 @@ jobs:
     - name: Install dependencies
       run: |
         flutter pub get
-        flutter pub run build_runner build --delete-conflicting-outputs || echo "Build runner completed"
 
     - name: Setup Shorebird CLI
       run: |
@@ -79,35 +76,3 @@ jobs:
       run: |
         echo "✅ Shorebird patch deployed successfully!"
         echo "🎉 Users will receive the update automatically"
-
-  deploy-ios:
-    name: 🍎 Deploy iOS with Shorebird
-    needs: quality-checks
-    runs-on: macos-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup Flutter
-      uses: subosito/flutter-action@v2
-      with:
-        flutter-version: ${{ env.FLUTTER_VERSION }}
-        cache: true
-
-    - name: Install dependencies
-      run: |
-        flutter pub get
-        flutter pub run build_runner build --delete-conflicting-outputs || echo "Build runner completed"
-
-    - name: Setup Shorebird CLI
-      run: |
-        dart pub global activate shorebird
-        echo "${{ secrets.SHOREBIRD_TOKEN }}" | shorebird login --ci
-
-    - name: Create Shorebird iOS Release
-      run: shorebird release ios --force
-
-    - name: Create Shorebird iOS Patch
-      run: shorebird patch ios

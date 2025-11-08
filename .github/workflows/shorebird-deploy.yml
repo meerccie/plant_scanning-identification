@@ -30,19 +30,20 @@ jobs:
       # 5️⃣ Install Shorebird
       - name: Install Shorebird
         run: |
-          curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
           SHOREBIRD_CMD="$HOME/.config/shorebird/bin/shorebird"
+          curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
           $SHOREBIRD_CMD --version
 
       # 6️⃣ Login to Shorebird
       - name: Shorebird Login
+        shell: bash
         run: |
           SHOREBIRD_CMD="$HOME/.config/shorebird/bin/shorebird"
           echo "$SHOREBIRD_TOKEN" | $SHOREBIRD_CMD login
         env:
           SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
 
-      # 7️⃣ Auto bump build number above last release
+      # 7️⃣ Auto bump build number safely
       - name: 🔢 Auto bump build number
         shell: bash
         run: |

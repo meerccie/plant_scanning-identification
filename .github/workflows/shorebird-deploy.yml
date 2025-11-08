@@ -11,8 +11,10 @@ jobs:
     timeout-minutes: 15
     
     steps:
-      # 1️⃣ Checkout repo
+      # 1️⃣ Checkout repo with credentials for git push
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
       # 2️⃣ Setup Flutter
       - uses: subosito/flutter-action@v2
@@ -43,7 +45,7 @@ jobs:
           echo "✅ New version line:"
           grep '^version:' pubspec.yaml
 
-      # 5️⃣ Optional: commit bumped version back to repo
+      # 5️⃣ Commit bumped version
       - name: Commit bumped version
         run: |
           git config user.name "github-actions[bot]"

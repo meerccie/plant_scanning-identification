@@ -9,7 +9,7 @@ jobs:
     name: 🚀 Deploy
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    
+
     steps:
       # 1️⃣ Checkout repo
       - uses: actions/checkout@v4
@@ -23,7 +23,7 @@ jobs:
       - run: flutter pub get
       - run: flutter test --concurrency=4
 
-      # 4️⃣ Install jq (for parsing JSON)
+      # 4️⃣ Install jq (for JSON parsing)
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
@@ -37,11 +37,12 @@ jobs:
       # 6️⃣ Login to Shorebird
       - name: Shorebird Login
         run: |
-          echo "$SHOREBIRD_TOKEN" | $HOME/.config/shorebird/bin/shorebird login
+          SHOREBIRD_CMD="$HOME/.config/shorebird/bin/shorebird"
+          echo "$SHOREBIRD_TOKEN" | $SHOREBIRD_CMD login
         env:
           SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
 
-      # 7️⃣ Auto bump build number above last Shorebird release safely
+      # 7️⃣ Auto bump build number above last release
       - name: 🔢 Auto bump build number
         shell: bash
         run: |
@@ -78,6 +79,7 @@ jobs:
 
       # 8️⃣ Deploy with Shorebird
       - name: 📦 Deploy with Shorebird
+        shell: bash
         run: |
           SHOREBIRD_CMD="$HOME/.config/shorebird/bin/shorebird"
           echo "🚀 Releasing version:"

@@ -20,7 +20,23 @@ jobs:
     - run: flutter pub get
     
     - run: flutter test --concurrency=4
-    
+
+    - name: 🔢 Bump build number
+      run: |
+        echo "Current version in pubspec.yaml:"
+        grep '^version:' pubspec.yaml
+
+        CURRENT_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+        VERSION_NAME=$(echo $CURRENT_VERSION | cut -d'+' -f1)
+        VERSION_CODE=$(echo $CURRENT_VERSION | cut -d'+' -f2)
+        NEW_VERSION_CODE=$((VERSION_CODE + 1))
+
+        echo "Bumping version to: ${VERSION_NAME}+${NEW_VERSION_CODE}"
+        sed -i "s/version: .*/version: ${VERSION_NAME}+${NEW_VERSION_CODE}/" pubspec.yaml
+
+        echo "New version:"
+        grep '^version:' pubspec.yaml
+
     - name: Deploy with Shorebird
       run: |
         # Install Shorebird

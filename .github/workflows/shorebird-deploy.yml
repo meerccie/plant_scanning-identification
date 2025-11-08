@@ -27,38 +27,42 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      # 5️⃣ Install Shorebird
+      # 5️⃣ Install Shorebird (FIXED)
       - name: Install Shorebird
         shell: bash
         run: |
-          SHOREBIRD_CMD="$HOME/.config/shorebird/bin/shorebird"
           curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
-          $SHOREBIRD_CMD --version
+          echo "$HOME/.config/shorebird/bin" >> $GITHUB_PATH
+          $HOME/.config/shorebird/bin/shorebird --version
 
-      # 6️⃣ Login to Shorebird
+      # 6️⃣ Login to Shorebird (FIXED)
       - name: Shorebird Login
         shell: bash
         run: |
-          SHOREBIRD_CMD="$HOME/.config/shorebird/bin/shorebird"
-          echo "$SHOREBIRD_TOKEN" | $SHOREBIRD_CMD login
+          echo "${{ secrets.SHOREBIRD_TOKEN }}" | $HOME/.config/shorebird/bin/shorebird login --force
         env:
           SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
 
-      # 7️⃣ Auto bump build number safely
+      # 7️⃣ Auto bump build number safely (FIXED)
       - name: 🔢 Auto bump build number
         shell: bash
         run: |
           SHOREBIRD_CMD="$HOME/.config/shorebird/bin/shorebird"
           APP_ID="3adc5582-3466-40f0-a1d8-fa5d98695859"
 
-          RELEASES_JSON=$($SHOREBIRD_CMD releases android --app $APP_ID --json 2>/dev/null)
+          # Add debug info
+          echo "🔍 Checking Shorebird installation..."
+          which shorebird || echo "Shorebird not in PATH"
+          ls -la $HOME/.config/shorebird/bin/ || echo "Shorebird bin directory not found"
 
-          if [[ -z "$RELEASES_JSON" || "$RELEASES_JSON" == "[]" ]]; then
+          RELEASES_JSON=$($SHOREBIRD_CMD releases android --app $APP_ID --json 2>/dev/null || echo "[]")
+
+          if [[ "$RELEASES_JSON" == "[]" ]]; then
             LAST_RELEASE=1
             echo "📝 No previous releases found, starting with build 1"
           else
             LAST_RELEASE=$(echo "$RELEASES_JSON" | jq -r '.[0].version' | awk -F'+' '{print $2}')
-            if [[ -z "$LAST_RELEASE" ]]; then
+            if [[ -z "$LAST_RELEASE" || "$LAST_RELEASE" == "null" ]]; then
               LAST_RELEASE=1
             fi
             echo "📝 Last Shorebird release build number: $LAST_RELEASE"
@@ -76,13 +80,18 @@ jobs:
           echo "✅ New version line:"
           grep '^version:' pubspec.yaml
 
-      # 8️⃣ Deploy with Shorebird
+      # 8️⃣ Deploy with Shorebird (FIXED)
       - name: 📦 Deploy with Shorebird
         shell: bash
         run: |
           SHOREBIRD_CMD="$HOME/.config/shorebird/bin/shorebird"
           echo "🚀 Releasing version:"
           grep '^version:' pubspec.yaml
+          
+          # Debug: Check if shorebird is accessible
+          $SHOREBIRD_CMD --version
+          
+          # Release and patch
           $SHOREBIRD_CMD release android --no-confirm
           $SHOREBIRD_CMD patch android --no-confirm
           echo "✅ Shorebird deployment successful!"

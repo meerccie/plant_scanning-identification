@@ -11,51 +11,66 @@ jobs:
     timeout-minutes: 15
     
     steps:
-    - uses: actions/checkout@v4
-    
-    - uses: subosito/flutter-action@v2
-      with:
-        flutter-version: '3.32.8'
-    
-    - run: flutter pub get
-    
-    - run: flutter test --concurrency=4
+      # 1️⃣ Checkout repo
+      - uses: actions/checkout@v4
 
-    - name: 🔢 Bump build number
-      run: |
-        echo "Current version in pubspec.yaml:"
-        grep '^version:' pubspec.yaml
+      # 2️⃣ Setup Flutter
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.8'
 
-        CURRENT_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
-        VERSION_NAME=$(echo $CURRENT_VERSION | cut -d'+' -f1)
-        VERSION_CODE=$(echo $CURRENT_VERSION | cut -d'+' -f2)
-        NEW_VERSION_CODE=$((VERSION_CODE + 1))
+      # 3️⃣ Get dependencies & run tests
+      - run: flutter pub get
+      - run: flutter test --concurrency=4
 
-        echo "Bumping version to: ${VERSION_NAME}+${NEW_VERSION_CODE}"
-        sed -i "s/version: .*/version: ${VERSION_NAME}+${NEW_VERSION_CODE}/" pubspec.yaml
+      # 4️⃣ Bump build number automatically
+      - name: 🔢 Bump build number
+        shell: bash
+        run: |
+          echo "📄 Current version in pubspec.yaml:"
+          grep '^version:' pubspec.yaml
 
-        echo "New version:"
-        grep '^version:' pubspec.yaml
+          CURRENT_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+          VERSION_NAME=$(echo "$CURRENT_VERSION" | cut -d'+' -f1)
+          VERSION_CODE=$(echo "$CURRENT_VERSION" | cut -d'+' -f2)
+          if [ -z "$VERSION_CODE" ]; then VERSION_CODE=1; fi
+          NEW_VERSION_CODE=$((VERSION_CODE + 1))
 
-    - name: Deploy with Shorebird
-      run: |
-        # Install Shorebird
-        curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
-        
-        # Use explicit path
-        SHOREBIRD_CMD="/home/runner/.config/shorebird/bin/shorebird"
-        
-        # Verify installation
-        $SHOREBIRD_CMD --version
-        
-        # Handle login
-        echo "$SHOREBIRD_TOKEN" | $SHOREBIRD_CMD login
-        
-        # Create release and patch
-        $SHOREBIRD_CMD release android --no-confirm
-        $SHOREBIRD_CMD patch android --no-confirm
-        
-        echo "✅ Shorebird deployment successful!"
-        echo "🎉 Users will receive the update automatically!"
-      env:
-        SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+          echo "🔧 Bumping version: ${VERSION_NAME}+${NEW_VERSION_CODE}"
+          sed -i.bak -E "s/^version:[[:space:]]*[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+/version: ${VERSION_NAME}+${NEW_VERSION_CODE}/" pubspec.yaml
+          rm -f pubspec.yaml.bak
+
+          echo "✅ New version line:"
+          grep '^version:' pubspec.yaml
+
+      # 5️⃣ Optional: commit bumped version back to repo
+      - name: Commit bumped version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pubspec.yaml
+          git commit -m "chore: bump build number for Shorebird release" || echo "No changes to commit"
+          git push
+
+      # 6️⃣ Deploy with Shorebird
+      - name: 📦 Deploy with Shorebird
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
+          SHOREBIRD_CMD="$HOME/.config/shorebird/bin/shorebird"
+
+          # Verify installation
+          $SHOREBIRD_CMD --version
+
+          # Login
+          echo "$SHOREBIRD_TOKEN" | $SHOREBIRD_CMD login
+
+          # Release & patch
+          echo "🚀 Releasing version:"
+          cat pubspec.yaml | grep version
+
+          $SHOREBIRD_CMD release android --no-confirm
+          $SHOREBIRD_CMD patch android --no-confirm
+
+          echo "✅ Shorebird deployment successful!"
+        env:
+          SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}

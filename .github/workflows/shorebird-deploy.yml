@@ -8,7 +8,7 @@ jobs:
   deploy:
     name: 🚀 Deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     
     steps:
       # 1️⃣ Checkout repo
@@ -23,45 +23,60 @@ jobs:
       - run: flutter pub get
       - run: flutter test --concurrency=4
 
-      # 4️⃣ Bump build number automatically (in runner only)
-      - name: 🔢 Bump build number
+      # 4️⃣ Install jq (for parsing JSON)
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      # 5️⃣ Install Shorebird
+      - name: Install Shorebird
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
+          SHOREBIRD_CMD="$HOME/.config/shorebird/bin/shorebird"
+          $SHOREBIRD_CMD --version
+
+      # 6️⃣ Login to Shorebird
+      - name: Shorebird Login
+        run: |
+          echo "$SHOREBIRD_TOKEN" | $HOME/.config/shorebird/bin/shorebird login
+        env:
+          SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+
+      # 7️⃣ Auto bump build number above last Shorebird release
+      - name: 🔢 Auto bump build number
         shell: bash
         run: |
-          echo "📄 Current version in pubspec.yaml:"
-          grep '^version:' pubspec.yaml
+          SHOREBIRD_CMD="$HOME/.config/shorebird/bin/shorebird"
+          APP_ID="3adc5582-3466-40f0-a1d8-fa5d98695859"
 
+          # Get latest Shorebird Android release build number
+          LAST_RELEASE=$($SHOREBIRD_CMD releases android --app $APP_ID --json | jq -r '.[0].version' | awk -F'+' '{print $2}')
+          if [ -z "$LAST_RELEASE" ]; then
+            LAST_RELEASE=1
+          fi
+          echo "📝 Last Shorebird release build number: $LAST_RELEASE"
+
+          # Read current pubspec.yaml version
           CURRENT_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
           VERSION_NAME=$(echo "$CURRENT_VERSION" | cut -d'+' -f1)
-          VERSION_CODE=$(echo "$CURRENT_VERSION" | cut -d'+' -f2)
-          if [ -z "$VERSION_CODE" ]; then VERSION_CODE=1; fi
-          NEW_VERSION_CODE=$((VERSION_CODE + 1))
 
-          echo "🔧 Bumping version: ${VERSION_NAME}+${NEW_VERSION_CODE}"
+          # Increment above last Shorebird release
+          NEW_VERSION_CODE=$((LAST_RELEASE + 1))
+          echo "🔧 Setting new version: ${VERSION_NAME}+${NEW_VERSION_CODE}"
+
           sed -i.bak -E "s/^version:[[:space:]]*[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+/version: ${VERSION_NAME}+${NEW_VERSION_CODE}/" pubspec.yaml
           rm -f pubspec.yaml.bak
 
           echo "✅ New version line:"
           grep '^version:' pubspec.yaml
 
-      # 5️⃣ Deploy with Shorebird
+      # 8️⃣ Deploy with Shorebird
       - name: 📦 Deploy with Shorebird
         run: |
-          curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
           SHOREBIRD_CMD="$HOME/.config/shorebird/bin/shorebird"
-
-          # Verify installation
-          $SHOREBIRD_CMD --version
-
-          # Login
-          echo "$SHOREBIRD_TOKEN" | $SHOREBIRD_CMD login
-
-          # Release & patch
           echo "🚀 Releasing version:"
           cat pubspec.yaml | grep version
-
           $SHOREBIRD_CMD release android --no-confirm
           $SHOREBIRD_CMD patch android --no-confirm
-
           echo "✅ Shorebird deployment successful!"
         env:
           SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}

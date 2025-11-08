@@ -23,12 +23,13 @@ jobs:
       - run: flutter pub get
       - run: flutter test --concurrency=4
 
-      # 4️⃣ Install jq (for JSON parsing)
+      # 4️⃣ Install jq for JSON parsing
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
       # 5️⃣ Install Shorebird
       - name: Install Shorebird
+        shell: bash
         run: |
           SHOREBIRD_CMD="$HOME/.config/shorebird/bin/shorebird"
           curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
@@ -50,7 +51,6 @@ jobs:
           SHOREBIRD_CMD="$HOME/.config/shorebird/bin/shorebird"
           APP_ID="3adc5582-3466-40f0-a1d8-fa5d98695859"
 
-          # Get Shorebird Android releases safely
           RELEASES_JSON=$($SHOREBIRD_CMD releases android --app $APP_ID --json 2>/dev/null)
 
           if [[ -z "$RELEASES_JSON" || "$RELEASES_JSON" == "[]" ]]; then
@@ -64,12 +64,10 @@ jobs:
             echo "📝 Last Shorebird release build number: $LAST_RELEASE"
           fi
 
-          # Read current pubspec.yaml version
           CURRENT_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
           VERSION_NAME=$(echo "$CURRENT_VERSION" | cut -d'+' -f1)
-
-          # Increment build number
           NEW_VERSION_CODE=$((LAST_RELEASE + 1))
+
           echo "🔧 Setting new version: ${VERSION_NAME}+${NEW_VERSION_CODE}"
 
           sed -i.bak -E "s/^version:[[:space:]]*[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+/version: ${VERSION_NAME}+${NEW_VERSION_CODE}/" pubspec.yaml
@@ -84,7 +82,7 @@ jobs:
         run: |
           SHOREBIRD_CMD="$HOME/.config/shorebird/bin/shorebird"
           echo "🚀 Releasing version:"
-          cat pubspec.yaml | grep version
+          grep '^version:' pubspec.yaml
           $SHOREBIRD_CMD release android --no-confirm
           $SHOREBIRD_CMD patch android --no-confirm
           echo "✅ Shorebird deployment successful!"

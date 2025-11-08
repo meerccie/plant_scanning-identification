@@ -11,10 +11,8 @@ jobs:
     timeout-minutes: 15
     
     steps:
-      # 1️⃣ Checkout repo with credentials for git push
+      # 1️⃣ Checkout repo
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: true
 
       # 2️⃣ Setup Flutter
       - uses: subosito/flutter-action@v2
@@ -25,7 +23,7 @@ jobs:
       - run: flutter pub get
       - run: flutter test --concurrency=4
 
-      # 4️⃣ Bump build number automatically
+      # 4️⃣ Bump build number automatically (in runner only)
       - name: 🔢 Bump build number
         shell: bash
         run: |
@@ -45,16 +43,7 @@ jobs:
           echo "✅ New version line:"
           grep '^version:' pubspec.yaml
 
-      # 5️⃣ Commit bumped version
-      - name: Commit bumped version
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add pubspec.yaml
-          git commit -m "chore: bump build number for Shorebird release" || echo "No changes to commit"
-          git push
-
-      # 6️⃣ Deploy with Shorebird
+      # 5️⃣ Deploy with Shorebird
       - name: 📦 Deploy with Shorebird
         run: |
           curl -fsSL https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash

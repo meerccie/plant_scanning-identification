@@ -1,3 +1,4 @@
+// lib/services/supabase_database_service.dart
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -102,6 +103,10 @@ class SupabaseDatabaseService {
     }
   }
 
+  // ============================================================================
+  // NEARBY STORES
+  // ============================================================================
+  
   static Future<List<Map<String, dynamic>>> getNearbyStoresWithPlant({
     required double latitude,
     required double longitude,
@@ -123,6 +128,10 @@ class SupabaseDatabaseService {
       return [];
     }
   }
+
+  // ============================================================================
+  // USER PROFILES
+  // ============================================================================
 
   static Future<Map<String, dynamic>?> getUserProfile(String userId) async {
     return _selectSingle(
@@ -179,6 +188,10 @@ class SupabaseDatabaseService {
       _handlePostgrestError(e, 'get seller profile');
     }
   }
+
+  // ============================================================================
+  // PLANTS
+  // ============================================================================
 
   static Future<List<Map<String, dynamic>>> getFeaturedPlants() async {
     return _selectList(
@@ -277,6 +290,10 @@ class SupabaseDatabaseService {
     );
   }
 
+  // ============================================================================
+  // STORES
+  // ============================================================================
+
   static Future<List<Map<String, dynamic>>> getStoresByUser(
       String userId) async {
     return _selectList(
@@ -314,6 +331,10 @@ class SupabaseDatabaseService {
     }
   }
 
+  // ============================================================================
+  // FAVORITE PLANTS
+  // ============================================================================
+
   static Future<List<String>> getFavoritePlants(String userId) async {
     final result = await _selectList(
       table: 'favorite_plants',
@@ -324,10 +345,36 @@ class SupabaseDatabaseService {
   }
 
   static Future<void> addFavoritePlant(String userId, String plantId) async {
-    await _insert(
-      table: 'favorite_plants',
-      data: {'user_id': userId, 'plant_id': plantId},
-    );
+    try {
+      await _insert(
+        table: 'favorite_plants',
+        data: {'user_id': userId, 'plant_id': plantId},
+      );
+      
+      debugPrint('✅ Plant $plantId added to favorites for user $userId');
+      
+      // Create notification for the seller
+      try {
+        final plant = await getPlantById(plantId);
+        if (plant != null && plant['stores'] != null) {
+          final sellerUserId = plant['stores']['user_id'];
+          final plantName = plant['name'] ?? 'Unknown Plant';
+          
+          await createFavoritePlantNotification(
+            userId: userId,
+            plantId: plantId,
+            sellerUserId: sellerUserId,
+            plantName: plantName,
+          );
+        }
+      } catch (e) {
+        debugPrint('⚠️ Could not create favorite plant notification: $e');
+        // Don't fail the favorite action if notification fails
+      }
+    } catch (e) {
+      debugPrint('❌ Error adding favorite plant: $e');
+      rethrow;
+    }
   }
 
   static Future<void> removeFavoritePlant(String userId, String plantId) async {
@@ -339,6 +386,10 @@ class SupabaseDatabaseService {
     );
   }
 
+  // ============================================================================
+  // FAVORITE STORES
+  // ============================================================================
+
   static Future<List<String>> getFavoriteStores(String userId) async {
     final result = await _selectList(
       table: 'favorite_stores',
@@ -349,10 +400,41 @@ class SupabaseDatabaseService {
   }
 
   static Future<void> addFavoriteStore(String userId, String storeId) async {
-    await _insert(
-      table: 'favorite_stores',
-      data: {'user_id': userId, 'store_id': storeId},
-    );
+    try {
+      await _insert(
+        table: 'favorite_stores',
+        data: {'user_id': userId, 'store_id': storeId},
+      );
+      
+      debugPrint('✅ Store $storeId added to favorites for user $userId');
+      
+      // Create notification for the seller
+      try {
+        final stores = await _selectList(
+          table: 'stores',
+          filters: {'id': storeId},
+        );
+        
+        if (stores.isNotEmpty) {
+          final store = stores.first;
+          final sellerUserId = store['user_id'];
+          final storeName = store['name'] ?? 'Unknown Store';
+          
+          await createFavoriteStoreNotification(
+            userId: userId,
+            storeId: storeId,
+            sellerUserId: sellerUserId,
+            storeName: storeName,
+          );
+        }
+      } catch (e) {
+        debugPrint('⚠️ Could not create favorite store notification: $e');
+        // Don't fail the favorite action if notification fails
+      }
+    } catch (e) {
+      debugPrint('❌ Error adding favorite store: $e');
+      rethrow;
+    }
   }
 
   static Future<void> removeFavoriteStore(String userId, String storeId) async {
@@ -382,6 +464,10 @@ class SupabaseDatabaseService {
       _handlePostgrestError(e, 'get plants from favorite stores');
     }
   }
+
+  // ============================================================================
+  // NOTIFICATIONS
+  // ============================================================================
 
   static Future<List<Map<String, dynamic>>> getNotifications(
       String userId) async {
@@ -415,19 +501,106 @@ class SupabaseDatabaseService {
     required String actorId,
     required String message,
     String? plantId,
+    String? storeId,
     String type = 'general',
   }) async {
-    await _insert(
-      table: 'notifications',
-      data: {
+    try {
+      final data = {
         'recipient_user_id': recipientId,
         'actor_user_id': actorId,
         'message': message,
-        'plant_id': plantId,
         'type': type,
-      },
-    );
+      };
+      
+      // Only add plant_id if it's provided
+      if (plantId != null) {
+        data['plant_id'] = plantId;
+      }
+      
+      // Only add store_id if it's provided
+      if (storeId != null) {
+        data['store_id'] = storeId;
+      }
+      
+      // Use service role client which bypasses RLS
+      await SupabaseService.serviceRoleClient
+          .from('notifications')
+          .insert(data);
+      
+      debugPrint('✅ Notification created: $type for $recipientId');
+    } catch (e) {
+      debugPrint('❌ Error creating notification: $e');
+      // Don't rethrow to prevent breaking the favorite functionality
+    }
   }
+
+  // NEW: Create notification when someone favorites a plant
+  static Future<void> createFavoritePlantNotification({
+    required String userId,
+    required String plantId,
+    required String sellerUserId,
+    required String plantName,
+  }) async {
+    try {
+      // Don't send notification if user favorites their own plant
+      if (userId == sellerUserId) {
+        debugPrint('⏭️ Skipping notification: user favorited own plant');
+        return;
+      }
+      
+      // Get user's profile for the notification message
+      final userProfile = await getUserProfile(userId);
+      final username = userProfile?['username'] ?? userProfile?['email'] ?? 'Someone';
+      
+      await createNotification(
+        recipientId: sellerUserId,
+        actorId: userId,
+        message: '$username favorited your plant: $plantName',
+        plantId: plantId,
+        type: 'new_favorite',
+      );
+      
+      debugPrint('✅ Created favorite plant notification for seller: $sellerUserId');
+    } catch (e) {
+      debugPrint('❌ Error creating favorite notification: $e');
+    }
+  }
+
+  // NEW: Create notification when someone favorites a store
+  static Future<void> createFavoriteStoreNotification({
+    required String userId,
+    required String storeId,
+    required String sellerUserId,
+    required String storeName,
+  }) async {
+    try {
+      // Don't send notification if user favorites their own store
+      if (userId == sellerUserId) {
+        debugPrint('⏭️ Skipping notification: user favorited own store');
+        return;
+      }
+      
+      // Get user's profile for the notification message
+      final userProfile = await getUserProfile(userId);
+      final username = userProfile?['username'] ?? userProfile?['email'] ?? 'Someone';
+      
+      await createNotification(
+        recipientId: sellerUserId,
+        actorId: userId,
+        message: '$username started following your store: $storeName',
+        storeId: storeId,
+        type: 'new_follower',
+      );
+      
+      debugPrint('✅ Created favorite store notification for seller: $sellerUserId');
+    } catch (e) {
+      debugPrint('❌ Error creating store favorite notification: $e');
+    }
+  }
+
+  // ============================================================================
+  // PLANT LEDGER (Seller History)
+  // ============================================================================
 
   static Future<List<Map<String, dynamic>>> getPlantLedgerHistory(
       String userId) async {
@@ -454,7 +627,6 @@ class SupabaseDatabaseService {
     );
   }
 
-  // ADDED: New function to specifically log quantity updates
   static Future<void> createQuantityUpdateLedgerEntry({
     required String userId,
     required String plantId,
@@ -462,7 +634,6 @@ class SupabaseDatabaseService {
     required int newQuantity,
     String? plantImageUrl,
   }) async {
-    // The action 'UPDATED' will now be saved in the database
     await createLedgerEntry(
       userId: userId,
       plantId: plantId,
@@ -513,6 +684,10 @@ class SupabaseDatabaseService {
     });
   }
 
+  // ============================================================================
+  // PLANT SCANS (User History)
+  // ============================================================================
+
   static Future<void> createPlantScan(Map<String, dynamic> scanData) async {
     await _insert(table: 'plant_scans', data: scanData);
   }
@@ -526,6 +701,10 @@ class SupabaseDatabaseService {
       ascending: false,
     );
   }
+
+  // ============================================================================
+  // UTILITY FUNCTIONS
+  // ============================================================================
 
   static double _calculateDistance(
       double lat1, double lon1, double lat2, double lon2) {

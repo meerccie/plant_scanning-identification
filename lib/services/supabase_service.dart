@@ -6,6 +6,7 @@ import '../config/env_config.dart';
 
 class SupabaseService {
   static bool _isInitialized = false;
+  static late final SupabaseClient _serviceRoleClient;
 
   static bool get isInitialized => _isInitialized;
 
@@ -16,6 +17,13 @@ class SupabaseService {
     return Supabase.instance.client;
   }
 
+  static SupabaseClient get serviceRoleClient {
+    if (!_isInitialized) {
+      throw Exception('Supabase not initialized. Call SupabaseService.initialize() first.');
+    }
+    return _serviceRoleClient;
+  }
+
   static Future<void> initialize() async {
     if (_isInitialized) return;
 
@@ -23,8 +31,9 @@ class SupabaseService {
       await EnvConfig.load();
       final url = EnvConfig.supabaseUrl;
       final anonKey = EnvConfig.supabaseAnonKey;
+      final serviceRoleKey = EnvConfig.supabaseServiceRoleKey;
 
-      if (url.isEmpty || anonKey.isEmpty) {
+      if (url.isEmpty || anonKey.isEmpty || serviceRoleKey.isEmpty) {
         throw Exception('Supabase credentials are not configured');
       }
 
@@ -37,9 +46,13 @@ class SupabaseService {
         debug: kDebugMode,
       );
 
+      // Initialize service role client
+      _serviceRoleClient = SupabaseClient(url, serviceRoleKey);
+
       _isInitialized = true;
+      debugPrint('✅ SupabaseService initialized with service role client');
     } catch (e) {
-      debugPrint('Supabase initialization failed: $e');
+      debugPrint('❌ Supabase initialization failed: $e');
       rethrow;
     }
   }

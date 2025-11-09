@@ -31,7 +31,41 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
   @override
   void initState() {
     super.initState();
-    _plantDetailsFuture = SupabaseDatabaseService.getPlantById(widget.plantId);
+    _loadPlantDetails();
+  }
+
+  void _loadPlantDetails() {
+    debugPrint('🔄 Loading plant details for ID: ${widget.plantId}');
+    setState(() {
+      _plantDetailsFuture = _fetchPlantWithErrorHandling();
+    });
+  }
+
+  Future<Map<String, dynamic>?> _fetchPlantWithErrorHandling() async {
+    try {
+      final plant = await SupabaseDatabaseService.getPlantById(widget.plantId);
+      
+      if (plant == null) {
+        debugPrint('❌ Plant not found in database: ${widget.plantId}');
+        return null;
+      }
+      
+      debugPrint('✅ Plant loaded successfully: ${plant['name']}');
+      debugPrint('📊 Plant data: ${plant.keys.toList()}');
+      
+      // Check if store data is available
+      if (plant['stores'] == null) {
+        debugPrint('⚠️ Store data is null for plant: ${widget.plantId}');
+      } else {
+        debugPrint('🏪 Store data available: ${plant['stores']?['name']}');
+      }
+      
+      return plant;
+    } catch (e) {
+      debugPrint('❌ Error fetching plant details: $e');
+      debugPrint('📋 Error type: ${e.runtimeType}');
+      rethrow;
+    }
   }
 
   void _launchMaps(double? lat, double? long) async {
@@ -51,12 +85,103 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
       body: FutureBuilder<Map<String, dynamic>?>(
         future: _plantDetailsFuture,
         builder: (context, snapshot) {
+          // Debug snapshot state
+          debugPrint('📱 FutureBuilder state: ${snapshot.connectionState}');
+          debugPrint('📱 FutureBuilder hasData: ${snapshot.hasData}');
+          debugPrint('📱 FutureBuilder hasError: ${snapshot.hasError}');
+          
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+            debugPrint('⏳ Loading plant details...');
             return const Center(
-                child: Text('Error: Could not load plant details.'));
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading plant details...'),
+                ],
+              ),
+            );
+          }
+          
+          if (snapshot.hasError) {
+            debugPrint('❌ FutureBuilder error: ${snapshot.error}');
+            debugPrint('📋 Error stack: ${snapshot.stackTrace}');
+            
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: Colors.red,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Failed to load plant details',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                    child: Text(
+                      'Error: ${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _loadPlantDetails,
+                    child: const Text('Retry'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Go Back'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          if (!snapshot.hasData || snapshot.data == null) {
+            debugPrint('❌ No plant data available');
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.local_florist_outlined,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Plant Not Found',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Plant ID: ${widget.plantId}',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _loadPlantDetails,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
           }
 
           final plant = snapshot.data!;
@@ -64,6 +189,8 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
           final sellerId = store?['user_id'];
           final isOwner = sellerId == SupabaseService.currentUser?.id;
           final quantity = plant['quantity'] ?? 0;
+
+          debugPrint('🎉 Building plant details UI for: ${plant['name']}');
 
           return CustomScrollView(
             slivers: [
@@ -79,8 +206,7 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
                           plant['scientific_name'] ?? 'Species Unknown',
                           style: AppTheme.lato(
                             fontStyle: FontStyle.italic,
-                            color: AppColors.primaryColor
-                                .withOpacity(0.8),
+                            color: AppColors.primaryColor.withOpacity(0.8),
                             fontSize: 20,
                           ),
                         ),
@@ -93,24 +219,26 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
                           icon: Icons.info_outline,
                         ),
                         _buildDetailCard(
-                            context,
-                            title: 'Price Range',
-                            content:
-                                '₱${plant['price_range'] ?? 'Price unavailable'}',
-                            icon: Icons.money,
-                            contentStyle: AppTheme.lato(
-                                fontSize: 22, color: AppColors.secondaryColor)),
+                          context,
+                          title: 'Price Range',
+                          content: '₱${plant['price_range'] ?? 'Price unavailable'}',
+                          icon: Icons.money,
+                          contentStyle: AppTheme.lato(
+                            fontSize: 22, 
+                            color: AppColors.secondaryColor
+                          ),
+                        ),
                         _buildDetailCard(
                           context,
                           title: 'Stock',
                           content: '$quantity available',
                           icon: Icons.inventory_2_outlined,
                           contentStyle: AppTheme.lato(
-                              fontSize: 18, color: AppColors.primaryColor),
+                            fontSize: 18, 
+                            color: AppColors.primaryColor
+                          ),
                         ),
-                        if (!widget.hideStoreNavigation &&
-                            store != null &&
-                            !isOwner)
+                        if (!widget.hideStoreNavigation && store != null && !isOwner)
                           _buildStoreSection(context, store, sellerId),
                       ],
                     ),
@@ -124,6 +252,7 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
     );
   }
 
+  // Rest of your methods remain the same...
   Widget _buildSliverAppBar(
       BuildContext context, Map<String, dynamic> plant, bool isOwner) {
     final plantId = plant['id'].toString();
@@ -215,8 +344,9 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
               content,
               style: contentStyle ??
                   AppTheme.lato(
-                      fontSize: 16,
-                      color: AppColors.primaryColor),
+                    fontSize: 16,
+                    color: AppColors.primaryColor,
+                  ),
             ),
           ],
         ),
@@ -269,10 +399,14 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
               onTap: () {
                 if (sellerId != null) {
                   Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => UnifiedStoreDashboard(
-                              sellerId: sellerId, isViewOnly: true)));
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => UnifiedStoreDashboard(
+                        sellerId: sellerId, 
+                        isViewOnly: true
+                      ),
+                    ),
+                  );
                 }
               },
             ),
@@ -283,9 +417,11 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
               onTap: () {
                 if (sellerId != null) {
                   Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => ProfilePage(userId: sellerId)));
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ProfilePage(userId: sellerId),
+                    ),
+                  );
                 }
               },
             ),
@@ -294,7 +430,9 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
               title: 'Get Directions',
               subtitle: storeAddress,
               onTap: () => _launchMaps(
-                  store['latitude'] as double?, store['longitude'] as double?),
+                store['latitude'] as double?, 
+                store['longitude'] as double?
+              ),
             ),
           ],
         ),
@@ -314,15 +452,20 @@ class _PlantDetailsPageState extends State<PlantDetailsPage> {
       elevation: 1,
       child: ListTile(
         leading: Icon(icon, color: AppColors.secondaryColor, size: 28),
-        title: Text(title,
-            style: AppTheme.lato(
-                fontWeight: FontWeight.bold,
-                color: AppColors.primaryColor,
-                fontSize: 16)),
-        subtitle: Text(subtitle,
-            style: AppTheme.lato(
-                color: AppColors.primaryColor
-                    .withOpacity(0.7))),
+        title: Text(
+          title,
+          style: AppTheme.lato(
+            fontWeight: FontWeight.bold,
+            color: AppColors.primaryColor,
+            fontSize: 16,
+          ),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: AppTheme.lato(
+            color: AppColors.primaryColor.withOpacity(0.7),
+          ),
+        ),
         trailing: const Icon(Icons.chevron_right, color: AppColors.primaryColor),
         onTap: onTap,
       ),

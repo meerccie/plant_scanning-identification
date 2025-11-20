@@ -1,7 +1,7 @@
 // lib/providers/location_provider.dart
 import 'dart:async';
-import 'package:flutter/foundation.dart'; // FIX: Added for debugPrint
-import 'package:flutter/material.dart';      // FIX: Corrected the import path
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:flutter/services.dart';
@@ -19,7 +19,6 @@ class LocationProvider with ChangeNotifier {
 
   Future<String?> getAddressFromCoordinates(double lat, double long) async {
     try {
-      // FIX: Removed the non-existent 'localeIdentifier' parameter.
       List<Placemark> placemarks = await placemarkFromCoordinates(lat, long);
 
       if (placemarks.isNotEmpty) {
@@ -51,45 +50,74 @@ class LocationProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> getCurrentLocation({BuildContext? context}) async {
+  // FIX: Added skipPermissionCheck parameter to avoid duplicate permission requests
+  Future<bool> getCurrentLocation({
+    BuildContext? context, 
+    bool skipPermissionCheck = false
+  }) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
+      // FIX: Always check if location services are enabled, even when skipping permission check
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         _error = 'Please enable location services to find nearby stores.';
         if (context != null && context.mounted) {
-          await _showLocationServiceDialog(context);
-        }
-        _isLoading = false;
-        notifyListeners();
-        return false;
-      }
-
-      _permissionStatus = await Geolocator.checkPermission();
-      
-      if (_permissionStatus == LocationPermission.denied) {
-        _permissionStatus = await Geolocator.requestPermission();
-        if (_permissionStatus == LocationPermission.denied) {
-          _error = 'Location permission is required to find nearby stores.';
+          final shouldOpenSettings = await _showLocationServiceDialog(context);
+          if (shouldOpenSettings == true) {
+            await Geolocator.openLocationSettings();
+            // Wait a bit for user to enable location
+            await Future.delayed(const Duration(seconds: 1));
+            // Re-check if service is now enabled
+            serviceEnabled = await Geolocator.isLocationServiceEnabled();
+            if (!serviceEnabled) {
+              _isLoading = false;
+              notifyListeners();
+              return false;
+            }
+          } else {
+            _isLoading = false;
+            notifyListeners();
+            return false;
+          }
+        } else {
           _isLoading = false;
           notifyListeners();
           return false;
         }
       }
 
-      if (_permissionStatus == LocationPermission.deniedForever) {
-        _error = 'Location permissions are permanently denied. Please enable them in your device settings.';
-        if (context != null && context.mounted) {
-          await _showPermanentlyDeniedDialog(context);
+      // FIX: Only check/request permissions if not skipping
+      if (!skipPermissionCheck) {
+        _permissionStatus = await Geolocator.checkPermission();
+        
+        if (_permissionStatus == LocationPermission.denied) {
+          _permissionStatus = await Geolocator.requestPermission();
+          if (_permissionStatus == LocationPermission.denied) {
+            _error = 'Location permission is required to find nearby stores.';
+            _isLoading = false;
+            notifyListeners();
+            return false;
+          }
         }
-        _isLoading = false;
-        notifyListeners();
-        return false;
+
+        if (_permissionStatus == LocationPermission.deniedForever) {
+          _error = 'Location permissions are permanently denied. Please enable them in your device settings.';
+          if (context != null && context.mounted) {
+            await _showPermanentlyDeniedDialog(context);
+          }
+          _isLoading = false;
+          notifyListeners();
+          return false;
+        }
+      } else {
+        // FIX: If skipping permission check, just update the status
+        _permissionStatus = await Geolocator.checkPermission();
       }
 
+      // Get current position
       _currentPosition = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.best,
         forceAndroidLocationManager: true, 
@@ -103,7 +131,7 @@ class LocationProvider with ChangeNotifier {
       return true;
 
     } on TimeoutException {
-       _error = 'Could not get your location in time. Please try again.';
+      _error = 'Could not get your location in time. Please try again.';
       _isLoading = false;
       notifyListeners();
       debugPrint('Location error: Timeout');
@@ -117,8 +145,8 @@ class LocationProvider with ChangeNotifier {
     }
   }
 
-  Future<void> _showLocationServiceDialog(BuildContext context) async {
-    await showDialog(
+  Future<bool?> _showLocationServiceDialog(BuildContext context) async {
+    return await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
@@ -129,13 +157,12 @@ class LocationProvider with ChangeNotifier {
           actions: [
             TextButton(
               child: const Text('Cancel'),
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(context).pop(false),
             ),
             ElevatedButton(
               child: const Text('Open Settings'),
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await Geolocator.openLocationSettings();
+              onPressed: () {
+                Navigator.of(context).pop(true);
               },
             ),
           ],
@@ -160,9 +187,9 @@ class LocationProvider with ChangeNotifier {
             ),
             ElevatedButton(
               child: const Text('Open App Settings'),
-              onPressed: () async {
+              onPressed: () {
                 Navigator.of(context).pop();
-                await Geolocator.openAppSettings();
+                Geolocator.openAppSettings();
               },
             ),
           ],
@@ -217,8 +244,9 @@ class LocationProvider with ChangeNotifier {
     }
   }
 
+  // FIX: Updated to skip permission check since it's already handled by PermissionProvider
   Future<bool> getCurrentLocationForScanning({BuildContext? context}) async {
-    return await getCurrentLocation(context: context);
+    return await getCurrentLocation(context: context, skipPermissionCheck: true);
   }
 
   void clearError() {

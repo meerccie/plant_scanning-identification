@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:geolocator/geolocator.dart';
 
 class PermissionProvider with ChangeNotifier {
   PermissionStatus _locationStatus = PermissionStatus.denied;
@@ -27,9 +28,20 @@ class PermissionProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // FIX: Enhanced to check and redirect to location services if needed
   Future<void> requestLocationPermission() async {
+    // First, request the permission
     _locationStatus = await Permission.location.request();
     notifyListeners();
+    
+    // FIX: If permission is granted, check if location services are enabled
+    if (_locationStatus.isGranted) {
+      final bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        // Redirect user to enable location services
+        await Geolocator.openLocationSettings();
+      }
+    }
   }
 
   Future<void> requestCameraPermission() async {
@@ -40,5 +52,9 @@ class PermissionProvider with ChangeNotifier {
   Future<void> openSettings() async {
     await openAppSettings();
   }
+  
+  // FIX: Added helper method to check if location services are enabled
+  Future<bool> isLocationServiceEnabled() async {
+    return await Geolocator.isLocationServiceEnabled();
+  }
 }
-

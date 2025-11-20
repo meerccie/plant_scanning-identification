@@ -4,17 +4,22 @@ import 'package:my_plant/providers/permission_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
-class PermissionsSection extends StatelessWidget {
+class PermissionsSection extends StatefulWidget {
   const PermissionsSection({super.key});
 
   @override
+  State<PermissionsSection> createState() => _PermissionsSectionState();
+}
+
+class _PermissionsSectionState extends State<PermissionsSection> {
+  bool _isCheckingLocationService = false;
+
+  @override
   Widget build(BuildContext context) {
-    // ADDED: A Consumer for AuthProvider to determine the user's role.
     return Consumer<AuthProvider>(
       builder: (context, authProvider, _) {
         final isSeller = authProvider.userType == 'seller';
 
-        // MODIFIED: Subtitles are now dynamic based on the user's role.
         final locationSubtitle = isSeller
             ? 'Required to set your store\'s coordinates accurately.'
             : 'Required to find nearby stores and plant sellers.';
@@ -33,21 +38,21 @@ class PermissionsSection extends StatelessWidget {
                 _buildPermissionItem(
                   context: context,
                   title: 'Location',
-                  // MODIFIED: Passed the dynamic subtitle.
                   subtitle: locationSubtitle,
                   status: provider.locationStatus,
-                  onRequest: () => provider.requestLocationPermission(),
+                  onRequest: () => _handleLocationPermissionRequest(provider),
                   onOpenSettings: () => provider.openSettings(),
+                  isCheckingService: _isCheckingLocationService,
                 ),
                 const Divider(color: Colors.white24),
                 _buildPermissionItem(
                   context: context,
                   title: 'Camera',
-                  // MODIFIED: Passed the dynamic subtitle.
                   subtitle: cameraSubtitle,
                   status: provider.cameraStatus,
                   onRequest: () => provider.requestCameraPermission(),
                   onOpenSettings: () => provider.openSettings(),
+                  isCheckingService: false,
                 ),
               ],
             );
@@ -57,6 +62,45 @@ class PermissionsSection extends StatelessWidget {
     );
   }
 
+  // FIX: New method to handle location permission with location service check
+  Future<void> _handleLocationPermissionRequest(
+      PermissionProvider provider) async {
+    setState(() => _isCheckingLocationService = true);
+
+    await provider.requestLocationPermission();
+
+    // Wait a moment to let the user enable location services
+    await Future.delayed(const Duration(milliseconds: 1500));
+
+    // Check if location services are now enabled
+    final isServiceEnabled = await provider.isLocationServiceEnabled();
+
+    if (mounted) {
+      setState(() => _isCheckingLocationService = false);
+
+      if (provider.isLocationGranted && !isServiceEnabled) {
+        // Show a reminder if permission is granted but service is still off
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Location permission granted! Please make sure location services are turned on in your device settings.',
+            ),
+            duration: Duration(seconds: 4),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      } else if (provider.isLocationGranted && isServiceEnabled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location permission granted and services enabled!'),
+            duration: Duration(seconds: 2),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildPermissionItem({
     required BuildContext context,
     required String title,
@@ -64,12 +108,24 @@ class PermissionsSection extends StatelessWidget {
     required PermissionStatus status,
     required VoidCallback onRequest,
     required VoidCallback onOpenSettings,
+    required bool isCheckingService,
   }) {
     String statusText;
     Color statusColor;
     Widget actionButton;
 
-    if (status.isGranted) {
+    if (isCheckingService) {
+      statusText = 'Checking...';
+      statusColor = Colors.blueAccent;
+      actionButton = const SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: Colors.white,
+        ),
+      );
+    } else if (status.isGranted) {
       statusText = 'Granted';
       statusColor = Colors.greenAccent;
       actionButton = const Icon(Icons.check_circle, color: Colors.greenAccent);

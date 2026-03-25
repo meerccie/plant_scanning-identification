@@ -11,8 +11,7 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
-.env             # <--- ADD THIS LINE
-my.env
+.env             
 *.jks
 private_access_token.txt
 

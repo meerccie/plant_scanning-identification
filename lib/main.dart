@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_links/app_links.dart';
-import 'package:shorebird_code_push/shorebird_code_push.dart';
 
 import 'providers/permission_provider.dart';
 import 'components/app_colors.dart';
@@ -21,7 +20,6 @@ import 'config/app_theme.dart';
 import 'config/env_config.dart';
 import 'pages/profile_page.dart';
 
-final shorebirdCodePush = ShorebirdCodePush();
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 bool isSupabaseInitialized = false;
 
@@ -41,10 +39,8 @@ Future<void> _initializeServices() async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // For Shorebird 1.0.0, no initialization is needed
-  // The package auto-initializes
-
+  
+  // Initialize app services (Environment & Supabase)
   await _initializeServices();
 
   runApp(const MyApp());
@@ -60,7 +56,6 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   final AppLinks _appLinks = AppLinks();
   StreamSubscription<Uri>? _linkSubscription;
-  int? _currentPatchNumber;
 
   void _restartApp() {
     setState(() {});
@@ -72,48 +67,12 @@ class _MyAppState extends State<MyApp> {
     if (!isSupabaseInitialized) return;
     _initDeepLinks();
     _setupAuthStateListener();
-    _checkForUpdates();
   }
 
   @override
   void dispose() {
     _linkSubscription?.cancel();
     super.dispose();
-  }
-
-  Future<void> _checkForUpdates() async {
-    try {
-      // Check if Shorebird is available
-      final isShorebirdAvailable = shorebirdCodePush.isShorebirdAvailable();
-      
-      if (!isShorebirdAvailable) {
-        debugPrint('Shorebird Engine not available');
-        return;
-      }
-
-      // Get current patch number
-      _currentPatchNumber = await shorebirdCodePush.currentPatchNumber();
-      debugPrint('Current patch number: $_currentPatchNumber');
-
-      // Check for new patches
-      final newPatchNumber = await shorebirdCodePush.nextPatchNumber();
-      
-      if (newPatchNumber != null && _currentPatchNumber != null && newPatchNumber > _currentPatchNumber!) {
-        debugPrint('New patch available: $newPatchNumber');
-        
-        // Download and apply the update
-        await shorebirdCodePush.downloadUpdateIfAvailable();
-        
-        // Optional: Force restart after update
-        // WidgetsBinding.instance.addPostFrameCallback((_) {
-        //   _restartApp();
-        // });
-      } else {
-        debugPrint('No new patches available');
-      }
-    } catch (error) {
-      debugPrint('Error checking for updates: $error');
-    }
   }
 
   void _setupAuthStateListener() {

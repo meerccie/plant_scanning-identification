@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Shorebird
+  
 
   # Supabase & Database
   supabase_flutter: ^2.10.3
@@ -48,7 +48,7 @@ dependencies:
   json_annotation: ^4.9.0
   uuid: ^4.4.0
   mime: ^1.0.5
-  shorebird_code_push: ^1.0.0
+
 
 dev_dependencies:
   flutter_test:
@@ -67,7 +67,7 @@ flutter:
     - assets/icons/
     - assets/fonts/
     - .env
-    - shorebird.yaml
+
 
   fonts:
     - family: Pacifico

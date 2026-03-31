@@ -1,24 +1,30 @@
-// lib/main.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_links/app_links.dart';
 
+// Providers
 import 'providers/permission_provider.dart';
-import 'components/app_colors.dart';
-import 'widgets/supabase_error_widget.dart';
-import 'pages/firstpage.dart';
-import 'pages/user_main_navigation.dart';
-import 'seller_pages/seller_main_navigation.dart';
 import 'providers/plant_provider.dart';
 import 'providers/location_provider.dart';
 import 'providers/auth_provider.dart';
+
+// Services & Config
 import 'services/supabase_service.dart';
 import 'config/app_routes.dart';
 import 'config/app_theme.dart';
 import 'config/env_config.dart';
+import 'components/app_colors.dart';
+
+// Pages & Widgets
+import 'widgets/supabase_error_widget.dart';
+import 'pages/firstpage.dart';
+import 'pages/user_main_navigation.dart';
+import 'seller_pages/seller_main_navigation.dart';
 import 'pages/profile_page.dart';
+// FIXED: Updated import to match your filename
+import 'pages/combined_password_reset_page.dart'; 
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 bool isSupabaseInitialized = false;
@@ -30,17 +36,17 @@ Future<void> _initializeServices() async {
     isSupabaseInitialized = SupabaseService.isInitialized;
 
     if (isSupabaseInitialized) {
-      debugPrint('✅ Supabase initialized successfully in main.dart');
+      debugPrint('✅ Services initialized successfully');
     }
   } catch (e) {
-    debugPrint('❌ Error initializing services in main.dart: $e');
+    debugPrint('❌ Initialization Error: $e');
   }
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize app services (Environment & Supabase)
+  // Wait for Environment and Database before starting UI
   await _initializeServices();
 
   runApp(const MyApp());
@@ -56,59 +62,55 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   final AppLinks _appLinks = AppLinks();
   StreamSubscription<Uri>? _linkSubscription;
-
-  void _restartApp() {
-    setState(() {});
-  }
+  StreamSubscription<AuthState>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
-    if (!isSupabaseInitialized) return;
-    _initDeepLinks();
-    _setupAuthStateListener();
+    if (isSupabaseInitialized) {
+      _initDeepLinks();
+      _setupAuthStateListener();
+    }
   }
 
   @override
   void dispose() {
     _linkSubscription?.cancel();
+    _authSubscription?.cancel();
     super.dispose();
   }
 
   void _setupAuthStateListener() {
-    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-      final AuthChangeEvent event = data.event;
-      if (event == AuthChangeEvent.signedOut) {
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      if (data.event == AuthChangeEvent.signedOut) {
         navigatorKey.currentContext?.read<PlantProvider>().clearAllFavorites();
       }
     });
   }
 
-  Future<void> _handleDeepLink(Uri uri) async {
-    if (!uri.toString().contains('#')) {
-      debugPrint('Ignoring deep link without auth fragment: $uri');
-      return;
-    }
-    try {
-      debugPrint('Handling auth deep link: $uri');
-      await Supabase.instance.client.auth.getSessionFromUrl(uri);
-    } catch (e) {
-      debugPrint('Error handling deep link: $e');
-    }
-  }
-
   Future<void> _initDeepLinks() async {
     try {
       final initialUri = await _appLinks.getInitialLink();
-      if (initialUri != null) {
-        await _handleDeepLink(initialUri);
-      }
-      _linkSubscription = _appLinks.uriLinkStream.listen((uri) {
-        _handleDeepLink(uri);
-      });
+      if (initialUri != null) await _handleDeepLink(initialUri);
+
+      _linkSubscription = _appLinks.uriLinkStream.listen(_handleDeepLink);
     } catch (e) {
-      debugPrint('Error initializing deep links: $e');
+      debugPrint('Deep Link Error: $e');
     }
+  }
+
+  Future<void> _handleDeepLink(Uri uri) async {
+    if (!uri.toString().contains('#')) return;
+    try {
+      debugPrint('Processing Auth Link: $uri');
+      await Supabase.instance.client.auth.getSessionFromUrl(uri);
+    } catch (e) {
+      debugPrint('Auth Link Error: $e');
+    }
+  }
+
+  void _restartApp() {
+    setState(() {});
   }
 
   @override
@@ -129,8 +131,9 @@ class _MyAppState extends State<MyApp> {
         onGenerateRoute: AppRoutes.onGenerateRoute,
         builder: (context, child) {
           return MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: const TextScaler.linear(1.0)),
+            data: MediaQuery.of(context).copyWith(
+              textScaler: const TextScaler.linear(1.0),
+            ),
             child: child!,
           );
         },
@@ -151,46 +154,25 @@ class AuthWrapper extends StatelessWidget {
           await _initializeServices();
           onRetry();
         },
-        errorMessage:
-            'Failed to connect to the database. Please check your internet connection and try again.',
+        errorMessage: 'Connection failed. Please check your internet.',
       );
     }
 
     return Consumer<AuthProvider>(
-      builder: (context, authProvider, _) {
-        bool isNavigatingToReset = false;
-
-        if (authProvider.isLoading) {
+      builder: (context, auth, _) {
+        if (auth.isLoading) {
           return const Scaffold(
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Loading Plantitao...', style: TextStyle(fontSize: 16, color: Colors.grey)),
-                ],
-              ),
-            ),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        if (authProvider.isPasswordRecoveryInProgress && !isNavigatingToReset) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (context.findRenderObject() != null) {
-              isNavigatingToReset = true;
-              Navigator.of(context).pushNamedAndRemoveUntil(
-                AppRoutes.passwordResetCombined,
-                (route) => false,
-                arguments: authProvider.user?.email ?? '',
-              );
-            }
-          });
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        // FIXED: Updated class name to match your file
+        if (auth.isPasswordRecoveryInProgress) {
+          return CombinedPasswordResetPage(email: auth.user?.email ?? '');
         }
 
-        if (authProvider.isAuthenticated) {
-          return authProvider.userType == 'seller'
+        if (auth.isAuthenticated) {
+          return auth.userType == 'seller'
               ? const SellerMainNavigation()
               : const MainNavigation();
         }
@@ -208,26 +190,19 @@ class PermissionWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Consumer<PermissionProvider>(
-      builder: (context, permissionProvider, _) {
-        if (permissionProvider.isLoading) {
+      builder: (context, permissions, _) {
+        if (permissions.isLoading) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
 
-        final authProvider = context.read<AuthProvider>();
-        final bool permissionsGranted = authProvider.userType == 'seller'
-            ? permissionProvider.isLocationGranted
-            : permissionProvider.areAllPermissionsGranted;
+        final auth = context.read<AuthProvider>();
+        final bool isGranted = auth.userType == 'seller'
+            ? permissions.isLocationGranted
+            : permissions.areAllPermissionsGranted;
 
-        if (permissionsGranted) {
-          return child;
-        } else {
-          return Stack(
-            children: [
-              child,
-              const PermissionLockScreen(),
-            ],
-          );
-        }
+        return isGranted 
+            ? child 
+            : Stack(children: [child, const PermissionLockScreen()]);
       },
     );
   }
@@ -239,43 +214,44 @@ class PermissionLockScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black.withAlpha(191), // ~75% opacity
+      backgroundColor: Colors.black.withOpacity(0.75),
       body: Center(
         child: Container(
-          margin: const EdgeInsets.all(24),
+          margin: const EdgeInsets.all(32),
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: AppColors.backgroundColor,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.lock_outline, size: 60, color: AppColors.primaryColor),
-              const SizedBox(height: 16),
+              const Icon(Icons.security_update_warning, size: 64, color: AppColors.primaryColor),
+              const SizedBox(height: 20),
               const Text(
-                'Permissions Required', 
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primaryColor), 
-                textAlign: TextAlign.center
+                'Permissions Required',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               const Text(
-                'To use all features of Plantitao, please grant the required camera and location permissions from your profile settings.', 
-                textAlign: TextAlign.center, 
-                style: TextStyle(fontSize: 16, color: AppColors.textSecondary)
+                'Please enable location and camera in settings to continue using Plantitao.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 24),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.settings),
-                label: const Text('Go to Settings'),
-                onPressed: () {
-                  Navigator.push(
-                    context, 
-                    MaterialPageRoute(
-                      builder: (_) => const ProfilePage(expandPermissionsSection: true)
-                    )
-                  );
-                },
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ProfilePage(expandPermissionsSection: true),
+                      ),
+                    );
+                  },
+                  child: const Text('Go to Settings'),
+                ),
               ),
             ],
           ),

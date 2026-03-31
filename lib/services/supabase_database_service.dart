@@ -522,8 +522,8 @@ class SupabaseDatabaseService {
         data['store_id'] = storeId;
       }
       
-      // Use service role client which bypasses RLS
-      await SupabaseService.serviceRoleClient
+      // UPDATED: Now uses standard _client instead of serviceRoleClient
+      await _client
           .from('notifications')
           .insert(data);
       

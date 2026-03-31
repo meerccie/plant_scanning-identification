@@ -1,77 +1,52 @@
-// lib/config/env_config.dart
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class EnvConfig {
-  // Fallback values if env file can't be loaded
-  static const String _fallbackUrl = 'https://cnckiqzooevhlggglonh.supabase.co';
-  static const String _fallbackAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNuY2tpcXpvb2V2aGxnZ2dsb25oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU5MjI5NDksImV4cCI6MjA3MTQ5ODk0OX0.ARvH80x-B2uJIhXpxCURBMelToqLsW4VKQDY4-ZbVZ0';
-  
   // Flag to track if dotenv has been loaded
   static bool _dotenvLoaded = false;
   
-  // Load environment variables
+  /// Load environment variables from the .env file.
+  /// Ensure ".env" is added to the assets section of your pubspec.yaml.
   static Future<void> load() async {
     if (_dotenvLoaded) return;
     
     try {
-      // UPDATED: Changed "my.env" to ".env"
       await dotenv.load(fileName: ".env");
       _dotenvLoaded = true;
-      debugPrint('EnvConfig: Environment variables loaded from .env');
+      debugPrint('EnvConfig: Configured successfully from .env');
     } catch (e) {
-      debugPrint('EnvConfig: Could not load .env file: $e');
-      debugPrint('EnvConfig: Using fallback configuration');
+      // In a real app, you might want to show a UI error if this fails
+      debugPrint('EnvConfig Error: Could not load .env file: $e');
       _dotenvLoaded = false;
     }
   }
-  
-  static String get supabaseUrl {
-    if (_dotenvLoaded) {
-      return dotenv.env['SUPABASE_URL'] ?? _fallbackUrl;
+
+  /// Helper method to retrieve keys and alert you if they are missing
+  static String _get(String key) {
+    if (!_dotenvLoaded) return '';
+    final value = dotenv.env[key];
+    if (value == null || value.isEmpty) {
+      debugPrint('⚠️ EnvConfig Warning: $key is missing from your .env file');
+      return '';
     }
-    return _fallbackUrl;
+    return value;
   }
 
-  static String get supabaseAnonKey {
-    if (_dotenvLoaded) {
-      return dotenv.env['SUPABASE_ANON_KEY'] ?? _fallbackAnonKey;
-    }
-    return _fallbackAnonKey;
-  }
+  // --- SUPABASE CONFIG ---
+  static String get supabaseUrl => _get('SUPABASE_URL');
+  static String get supabaseAnonKey => _get('SUPABASE_ANON_KEY');
 
-  static String get supabaseServiceRoleKey {
-    if (_dotenvLoaded) {
-      return dotenv.env['SUPABASE_SERVICE_ROLE_KEY'] ?? '';
-    }
-    return '';
-  }
+  // --- EXTERNAL APIS ---
+  static String get perenualApiKey => _get('PERENUAL_API_KEY');
+  static String get geminiApiKey => _get('GEMINI_API_KEY');
 
-  // Perenual API Key configuration
-  static String get perenualApiKey {
-    if (_dotenvLoaded) {
-      return dotenv.env['PERENUAL_API_KEY'] ?? '';
-    }
-    return '';
-  }
-
-  // Trefle key is kept for reference
-  static String get trefleApiKey {
-    if (_dotenvLoaded) {
-      return dotenv.env['TREFLE_API_KEY'] ?? '';
-    }
-    return '';
-  }
-  
-  // ADDED: Gemini API Key for AI features
-  static String get geminiApiKey {
-    if (_dotenvLoaded) {
-      return dotenv.env['GEMINI_API_KEY'] ?? '';
-    }
-    return '';
-  }
-  
-  static bool get isProduction => const bool.fromEnvironment('dart.vm.product');
+  // --- UTILS ---
+  static bool get isProduction => kReleaseMode;
   static bool get isDotenvLoaded => _dotenvLoaded;
-}
 
+static String get plantNetApiKey => _get('PLANTNET_API_KEY');
+  static String get plantNetProject {
+    final project = _get('PLANTNET_PROJECT');
+    return project.isEmpty ? 'all' : project; // Default to 'all' for broad search
+  }
+}

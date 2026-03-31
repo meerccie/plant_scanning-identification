@@ -1,4 +1,12 @@
+# Environment Variables (SENSITIVE)
+# ----------------------------------------------------------------------------
+# Ignore all environment files containing real API keys
+.env*
+# BUT explicitly allow the template file so others know which keys to use
+!.env.example
+
 # Miscellaneous
+# ----------------------------------------------------------------------------
 *.class
 *.log
 *.pyc
@@ -11,22 +19,26 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
-.env             
 *.jks
 
-
-# IntelliJ related
+# IntelliJ / Android Studio
+# ----------------------------------------------------------------------------
 *.iml
 *.ipr
 *.iws
 .idea/
+.gradle/
+local.properties
+captures/
+*.bak
+*.table
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# Visual Studio Code
+# ----------------------------------------------------------------------------
+.vscode/
 
-# Flutter/Dart/Pub related
+# Flutter / Dart / Pub
+# ----------------------------------------------------------------------------
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
@@ -36,13 +48,21 @@ migrate_working_dir/
 .pub/
 /build/
 
-# Symbolication related
+# Symbolication and Obfuscation
+# ----------------------------------------------------------------------------
 app.*.symbols
-
-# Obfuscation related
 app.*.map.json
 
-# Android Studio will place build artifacts here
+# Android Studio Build Artifacts
+# ----------------------------------------------------------------------------
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# iOS Specific
+# ----------------------------------------------------------------------------
+**/ios/Pods/
+**/ios/.generated/
+**/ios/DerivedData/
+*.moved-aside
+*.xcuserstate

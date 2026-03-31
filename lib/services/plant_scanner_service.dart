@@ -1,16 +1,16 @@
-// lib/services/plant_scanner_service.dart
 import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:flutter/foundation.dart';
+import '../config/env_config.dart'; // Ensure this path matches your project structure
 
-// --- DATA MODELS UPDATED TO INCLUDE IMAGES ---
+// --- DATA MODELS ---
+
 class PlantIdentification {
   final List<PlantResult> results;
 
-  PlantIdentification({ required this.results });
+  PlantIdentification({required this.results});
 
   factory PlantIdentification.fromJson(Map<String, dynamic> json) {
     return PlantIdentification(
@@ -26,7 +26,7 @@ class PlantResult {
   final PlantSpecies species;
   final List<PlantImage> images;
 
-  PlantResult({ required this.score, required this.species, required this.images });
+  PlantResult({required this.score, required this.species, required this.images});
 
   factory PlantResult.fromJson(Map<String, dynamic> json) {
     return PlantResult(
@@ -69,7 +69,7 @@ class PlantTaxonomy {
   final String? genus;
   final String? family;
 
-  PlantTaxonomy({ this.genus, this.family });
+  PlantTaxonomy({this.genus, this.family});
 
   factory PlantTaxonomy.fromJson(Map<String, dynamic> json) {
     return PlantTaxonomy(
@@ -83,7 +83,7 @@ class PlantImage {
   final String url;
   final String organ;
 
-  PlantImage({ required this.url, required this.organ });
+  PlantImage({required this.url, required this.organ});
 
   factory PlantImage.fromJson(Map<String, dynamic> json) {
     return PlantImage(
@@ -93,69 +93,33 @@ class PlantImage {
   }
 }
 
+// --- SERVICE IMPLEMENTATION ---
+
 class PlantScannerService {
   static const String baseUrl = 'https://my-api.plantnet.org';
-  static String get project => dotenv.env['PLANTNET_PROJECT'] ?? 'k-world-flora';
-  static String get apiKey => dotenv.env['PLANTNET_API_KEY'] ?? '';
+  
+  // Now pulling from our secure EnvConfig
+  static String get project => EnvConfig.plantNetProject;
+  static String get apiKey => EnvConfig.plantNetApiKey;
 
+  /// Main entry point for identifying a plant from a file
   static Future<PlantIdentification> identifyPlantEnhanced(File imageFile) async {
     try {
       if (apiKey.isEmpty) {
-        throw Exception('PlantNet API key is not configured.');
+        throw Exception('PlantNet API key is not configured in .env');
       }
-      await validateEnhancedImageFile(imageFile);
-      return await callEnhancedPlantNetAPI(imageFile, includeRelatedImages: true);
+      
+      await _validateImageFile(imageFile);
+      return await _callPlantNetAPI(imageFile, includeRelatedImages: true);
     } catch (e) {
-      debugPrint('Error during plant identification flow: $e');
+      debugPrint('PlantScannerService Error: $e');
       rethrow;
     }
   }
 
-  static MediaType getEnhancedContentType(String filePath) {
-    final extension = filePath.split('.').last.toLowerCase();
-    switch (extension) {
-      case 'jpg':
-      case 'jpeg':
-        return MediaType('image', 'jpeg');
-      case 'png':
-        return MediaType('image', 'png');
-      default:
-        return MediaType('image', 'jpeg');
-    }
-  }
-
-  static void handleEnhancedApiError(int statusCode, String responseBody) {
-    if (kDebugMode) {
-      print('Handling API Error: $statusCode, Body: $responseBody');
-    }
-    switch (statusCode) {
-      case 400:
-        throw Exception('No recognizable plant parts detected. Please try a different photo.');
-      case 401:
-        throw Exception('Authentication failed. Check your API key.');
-      default:
-        throw Exception('Plant identification service failed, HTTP $statusCode');
-    }
-  }
-
-  static Future<void> validateEnhancedImageFile(File imageFile) async {
-    if (!await imageFile.exists()) {
-      throw Exception('Image file does not exist.');
-    }
-    final fileSize = await imageFile.length();
-    if (fileSize == 0) {
-      throw Exception('Image file is empty.');
-    }
-    const maxSize = 5 * 1024 * 1024;
-    if (fileSize > maxSize) {
-      throw Exception('Image is too large (${(fileSize / (1024 * 1024)).toStringAsFixed(1)}MB). Max size is 5MB.');
-    }
-  }
-
-  static Future<PlantIdentification> callEnhancedPlantNetAPI(File imageFile, {bool includeRelatedImages = false}) async {
+  static Future<PlantIdentification> _callPlantNetAPI(File imageFile, {bool includeRelatedImages = false}) async {
     try {
-      // *** FIX: This now uses the correct general identification endpoint for both pages ***
-      final uri = Uri.parse('$baseUrl/v2/identify/all').replace(
+      final uri = Uri.parse('$baseUrl/v2/identify/$project').replace(
         queryParameters: {
           'api-key': apiKey,
           'include-related-images': includeRelatedImages.toString(),
@@ -163,16 +127,20 @@ class PlantScannerService {
           'lang': 'en',
         },
       );
+
       var request = http.MultipartRequest('POST', uri);
+      
+      // Read file and attach to request
       final fileBytes = await imageFile.readAsBytes();
-      final contentType = getEnhancedContentType(imageFile.path);
-      final multipartFile = http.MultipartFile.fromBytes(
+      final contentType = _getContentType(imageFile.path);
+      
+      request.files.add(http.MultipartFile.fromBytes(
         'images',
         fileBytes,
         filename: imageFile.path.split('/').last,
         contentType: contentType,
-      );
-      request.files.add(multipartFile);
+      ));
+
       request.fields['organs'] = 'auto';
       request.headers['Accept'] = 'application/json';
       request.headers['User-Agent'] = 'Plantitao Flutter App';
@@ -182,33 +150,48 @@ class PlantScannerService {
 
       if (streamedResponse.statusCode == 200) {
         final jsonResponse = json.decode(responseBody) as Map<String, dynamic>;
-        if (jsonResponse['results'] == null || (jsonResponse['results'] as List).isEmpty) {
-          throw Exception('No plant species found. Please try a clearer photo.');
-        }
-        return _parsePlantNetResponse(jsonResponse);
+        return _parseResponse(jsonResponse);
       } else {
-        handleEnhancedApiError(streamedResponse.statusCode, responseBody);
-        throw Exception('An unknown API error occurred.');
+        _handleApiError(streamedResponse.statusCode, responseBody);
+        throw Exception('Failed to identify plant');
       }
     } catch (e) {
-      if (kDebugMode) {
-        print('Network/Request error: $e');
-      }
-      if (e.toString().contains('SocketException')) {
-        throw Exception('Network connection failed. Please check your internet connection.');
+      if (e is SocketException) {
+        throw Exception('No internet connection. Please try again.');
       }
       rethrow;
     }
   }
 
-  static PlantIdentification _parsePlantNetResponse(Map<String, dynamic> json) {
-    try {
-      return PlantIdentification.fromJson(json);
-    } catch (e) {
-      if (kDebugMode) {
-        print('JSON parse error: $e');
-      }
-      throw Exception('Failed to parse results from the identification service.');
+  static PlantIdentification _parseResponse(Map<String, dynamic> json) {
+    if (json['results'] == null || (json['results'] as List).isEmpty) {
+      throw Exception('No plant species found. Please try a clearer photo.');
     }
+    return PlantIdentification.fromJson(json);
+  }
+
+  static MediaType _getContentType(String filePath) {
+    final extension = filePath.split('.').last.toLowerCase();
+    if (extension == 'png') return MediaType('image', 'png');
+    return MediaType('image', 'jpeg');
+  }
+
+  static Future<void> _validateImageFile(File imageFile) async {
+    if (!await imageFile.exists()) throw Exception('Image file not found.');
+    
+    final fileSize = await imageFile.length();
+    if (fileSize == 0) throw Exception('Image file is empty.');
+    
+    // 5MB Limit
+    if (fileSize > 5 * 1024 * 1024) {
+      throw Exception('Image is too large. Max size is 5MB.');
+    }
+  }
+
+  static void _handleApiError(int statusCode, String body) {
+    debugPrint('PlantNet API Error ($statusCode): $body');
+    if (statusCode == 401) throw Exception('Invalid API Key.');
+    if (statusCode == 404) throw Exception('Botanical project "$project" not found.');
+    if (statusCode == 400) throw Exception('The image was not recognized as a plant.');
   }
 }
